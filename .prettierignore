@@ -1,0 +1,13 @@
+# Hand-authored documentation is not Prettier-managed.
+# This includes the locked ADR (04-architecture-decision.md) and the agent-run
+# logs, which must not be reflowed.
+*.md
+
+# Local tooling state (not part of the project).
+.refact/
+
+# Generated / vendored output.
+.expo/
+node_modules/
+coverage/
+dist/
