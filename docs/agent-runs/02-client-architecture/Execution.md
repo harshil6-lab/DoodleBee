@@ -187,3 +187,83 @@
 - **Status:** DONE — Stage 02 client foundation complete and verified. Stage 03 **not** started.
 
 - **Next action:** Architecture Lead to (a) confirm or override the added deep-link `scheme`, (b) update ADR §14 to reflect that Skia ships in Expo Go for SDK 57, (c) approve or reject the `devDependencies` and flat-ESLint-config deviations, then (d) run the AD-004 device performance test to move Skia from CONDITIONAL to LOCKED. Stage 03 remains the next stage.
+
+---
+
+## ARCH-002 — Architecture Lead Reconciliation (BUILD-001 follow-up)
+
+- **Agent:** Architecture Lead
+- **Task:** Reconcile ONLY the items BUILD-001 flagged for Architecture Lead review (route directory, Skia/Expo Go documentation, deep-link scheme, AD-004 validation) plus the non-blocking npm audit record. **Documentation only** — no implementation change was authorised or made.
+- **Authority:** `04-architecture-decision.md` (ADR v2.0) + `decision.md` (D02-001 — D02-020) + BUILD-001 verified evidence
+- **Files inspected before any modification:**
+  - `AGENTS.md`
+  - `docs/agent-runs/02-client-architecture/04-architecture-decision.md`, `decision.md`, `Execution.md`, `Build.md`
+  - `docs/AGENTS.md`, `docs/Design.md`, `docs/projectInfo.md`
+  - `ProjectDocs/01-information-architecture.md`, `ProjectDocs/02-client-architecture.md`
+  - `app.json`, `package.json`, `app/_layout.tsx`, `tsconfig.json`, `.env.example`
+  - Full `app/` and `src/` trees
+- **Commands executed:**
+  - `npm audit --json` — advisory inventory (2 root advisories, 14 moderate entries, 0 high/critical)
+  - `adb devices -l` + device `getprop` — **no device attached** at reconciliation time
+  - `git log`, `git ls-files docs/agent-runs`, `git grep flow.md`
+  - Live Expo SDK 57 docs per `docs/AGENTS.md`: `versions/v57.0.0/sdk/skia`, `versions/v57.0.0/config/app`, `linking/into-your-app`, `llms.txt`
+- **Findings:**
+  - **Route directory:** three sources support `app/` (ADR §5, `ProjectDocs/02-client-architecture.md` §3, the verified implementation) against one outlier (root `AGENTS.md` said `src/app/`). Expo Router supports both, so this was a documentation conflict, not a defect.
+  - **Skia / Expo Go:** ADR §14 was factually wrong for SDK 57. Expo's SDK 57 Skia page reports `inExpoGo: true`, and Expo Go 57.0.9's APK contains `librnskia.so`. The `react-native-svg` fallback is not triggered.
+  - **Deep-link scheme:** `scheme: "doodlebee"` had no approved source. Expo's linking docs establish that an undefined `scheme` falls back to `android.package` / `ios.bundleIdentifier`, so the value is not load-bearing — but also not invented: it derives from the approved `slug`.
+  - **AD-004:** the required test cannot be executed in Stage 02. The 8-viewer and <200 ms clauses need the Stage 3 realtime layer; the 60 fps clause needs new instrumentation plus a physical device, and no device was attached (`adb devices` empty) while the only emulator observed by BUILD-001 is shared, x86_64 and therefore not a valid FPS target.
+  - **Reporting gap found:** `flow.md` does not exist and never has. BUILD-001's own Execution entry lists it among files inspected, and it was requested for this reconciliation. `git ls-files docs/agent-runs` shows it was never tracked.
+- **Decisions made:**
+  1. **D02-021** — `app/` at the repository root is the single authoritative route directory. `AGENTS.md` corrected; **no implementation moved**.
+  2. **D02-022** — `scheme: "doodlebee"` is APPROVED WITH CONDITIONS and formally recorded. Platform configuration only: no public deep-link contract, no linkable route surface; any link surface needs separate approval. The "remove it" alternative is documented and rejected.
+  3. **D02-008 / AD-004** — status set to CONDITIONAL — SDK COMPATIBILITY VERIFIED, PERFORMANCE VALIDATION PENDING. **Not LOCKED.** No claim of validated runtime rendering performance is made.
+  4. **D02-023** — npm audit advisories ACCEPTED as non-blocking; Expo/SDK **not** downgraded.
+  5. **D-DEF-010** closed as RESOLVED.
+  6. BUILD-001's eight deviations accepted as listed in `decision.md` → Accepted BUILD-001 Deviations.
+- **Files modified (all documentation):**
+  - `AGENTS.md` — `src/app/` → `app/`
+  - `docs/agent-runs/02-client-architecture/04-architecture-decision.md` — v2.0 → v2.1: header/status, §1, §4 stack row, §5 route-directory convention + corrected file mapping, §14 Conditions A/B + expanded test requirement/protocol, §21.1 validation note, §25 AD-004 and AD-001 corrections, §26 D-DEF-010, §27 marked COMPLETED, new §28 (RC-001 — RC-005)
+  - `docs/agent-runs/02-client-architecture/decision.md` — v2.0 → v2.1: D02-008 status, new D02-021/022/023, Accepted BUILD-001 Deviations, Blocked Decisions, Open Conditions
+  - `docs/agent-runs/02-client-architecture/Execution.md` — this entry appended (prior history preserved)
+  - `docs/agent-runs/02-client-architecture/Build.md` — pointer section appended; BUILD-001 record otherwise untouched
+- **Tests/checks:** No code changed, so no re-validation required. `AGENTS.md`, the ADR, the ledger and the run logs are excluded from `prettier --check` by `.prettierignore` (`*.md`), so `format:check` is unaffected.
+- **Blockers:** None blocking. Missing evidence recorded, not worked around: (a) AD-004 performance numbers; (b) `flow.md` referenced but never authored; (c) no device attached, so no on-device work was possible in this entry.
+- **Resolution:** All four review items reconciled as documentation. AD-004 correctly remains CONDITIONAL.
+- **Status:** DONE — architecture reconciled. Stage 02 remains complete; Stage 03 **not** started.
+- **Next action:** Begin Stage 03 (Game State Machine), where the realtime layer enables the AD-004 performance validation defined in ADR §14.
+
+---
+
+## DOCS-001 — Stage 02 Documentation Closure (`flow.md`)
+
+- **Agent:** Architecture Lead
+- **Task:** Stage 02 documentation closure **only**. Create the missing `flow.md`
+  documenting the executed Stage 02 workflow, and record its creation. No
+  implementation change, no ADR decision change, Stage 03 not started.
+- **Files inspected (before writing):**
+  - `docs/agent-runs/02-client-architecture/decision.md` (v2.1)
+  - `docs/agent-runs/02-client-architecture/Execution.md`
+  - `docs/agent-runs/02-client-architecture/Build.md`
+  - `docs/agent-runs/02-client-architecture/04-architecture-decision.md` (v2.1)
+  - `docs/agent-runs/02-client-architecture/01-claude-research.md`, `02-codex-review.md`, `03-nara-tooling.md`
+  - `docs/AGENTS.md`
+- **Commands executed:**
+  - `git ls-files docs/agent-runs` — confirm `flow.md` was never tracked
+  - `git log --all --name-only -- '*flow*'` — confirm no `flow.md` anywhere in history
+  - `Test-Path` on `flow.md` — confirmed absent before writing
+  - byte-size and heading inspection of the four numbered artifacts
+- **Findings:**
+  - `flow.md` had never existed and never been tracked; it is referenced only in BUILD-001's own "Files inspected" list. No prior revision existed to restore.
+  - The numeric artifact prefixes (`01-` ... `04-`) are **not** a chronology: `03-nara-tooling.md` is dated 2026-09-26 and `02-codex-review.md` states it was written after the Nara reconnaissance — slot `02` was filled after slot `03`.
+  - Slot `01-claude-research.md` still contains its prompt only (1,994 bytes). No research output was ever produced; ADR §2 records the same.
+  - `02-codex-review.md` is currently a full independent review (30,963 bytes, dated 2026-09-26). ADR §2 and the `CODEX-001` entry describe it as prompt-only, while `ARCH-001` describes it as a full 681-line review. Recorded as a discrepancy in `flow.md` §5 rather than silently resolved.
+  - `docs/AGENTS.md` §18 points at `docs/01-information-architecture.md`, while the approved IA document is `ProjectDocs/01-information-architecture.md`. Recorded, not resolved.
+- **Files created/modified:**
+  - `docs/agent-runs/02-client-architecture/flow.md` — **new**. Documents the executed Stage 02 workflow in 8 phases: artifact→entry numbering model, phase map, per-phase detail with evidence, known documentation discrepancies, what the workflow deliberately did not do, and the closure state.
+  - `docs/agent-runs/02-client-architecture/Execution.md` — this entry appended (prior history preserved).
+  - No other file was touched. The ADR, `decision.md`, `Build.md`, `AGENTS.md` and all implementation files are unchanged by this entry.
+- **Tests/checks:** No code changed, so no re-validation was required. `*.md` is excluded from `prettier --check` by `.prettierignore`, so `format:check` is unaffected. `flow.md` verified written as UTF-8 without BOM, LF line endings, no U+FFFD.
+- **Blockers:** None.
+- **Resolution:** Stage 02 documentation is closed. `flow.md` exists and is consistent with ADR v2.1, `decision.md` v2.1, `Build.md` and all prior execution entries.
+- **Status:** DONE — documentation closure complete. Stage 02 remains complete; Stage 03 **not** started.
+- **Next action:** Begin Stage 03 (Game State Machine), where the realtime layer enables the AD-004 performance validation defined in ADR §14.

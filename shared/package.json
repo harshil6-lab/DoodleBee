@@ -1,0 +1,7 @@
+{
+  "name": "@doodlebee/contract",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DoodleBee Stage 03 shared client/server contract. Single source of truth (D03-023); copied verbatim into the client by scripts/contract.mjs.",
+  "type": "module"
+}
