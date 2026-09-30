@@ -2,8 +2,9 @@
 
 **Stage:** 02 — Client Architecture
 **Document:** Architecture Decision Record
-**Version:** 2.0 (Final — Architecture Lead Reconciliation)
-**Status:** LOCKED
+**Version:** 2.1 (Architecture Lead Reconciliation - BUILD-001)
+**Status:** LOCKED — one decision (AD-004) is CONDITIONAL on an on-device
+performance validation that cannot run until the Stage 3 realtime layer exists
 **Project:** DoodleBee
 **Date:** September 2026
 
@@ -12,6 +13,13 @@
 ## 1. Architecture Status
 
 **LOCKED** — All implementable decisions resolved. Two items deferred to Stage 3 with explicit rationale.
+
+**One decision is CONDITIONAL, not locked.** AD-004
+(`@shopify/react-native-skia`) is SDK-compatibility approved but performance
+unverified. BUILD-001 verified its SDK 57 / Expo Go compatibility (Condition A);
+its performance condition (60 fps, 8 simultaneous viewers, <200 ms event
+propagation) has **not** been measured. The exact missing evidence and the
+protocol needed to close it are recorded in Section 14.
 
 ---
 
@@ -72,7 +80,7 @@ This principle governs every architectural choice below.
 | React Hook Form | **APPROVED** | Complex forms only (nickname, create-room, join-room); simple controls use direct state |
 | React Native Reanimated | **APPROVED WITH CONDITIONS** | UI animations only; must not interfere with drawing touch handler (use `runOnJS` appropriately) |
 | socket.io-client | **APPROVED** | See Section 11 |
-| @shopify/react-native-skia | **UNDER_REVIEW — SDK COMPATIBILITY CHECK REQUIRED** | See Section 14 |
+| @shopify/react-native-skia | **APPROVED WITH CONDITIONS** | SDK 57 compatible (pinned `2.6.2`) and bundled in Expo Go 57; on-device performance validation still outstanding — see Section 14 |
 | fetch (native) | **APPROVED** | Thin wrapper with base URL and error normalization; Axios rejected — unnecessary bundle cost for 4-5 endpoints |
 
 ---
@@ -93,24 +101,33 @@ Production routes (from approved IA — NOT modified):
 /settings
 ```
 
-Expo Router file mapping:
+### Route directory convention (authoritative)
 
-```
-app/
-├── (index).tsx           → /
-├── nickname.tsx          → /nickname
-├── create-room.tsx       → /create-room
-├── join-room.tsx         → /join-room
-├── lobby/
-│   └── [roomId].tsx      → /lobby/[roomId]
-├── game/
-│   └── [roomId].tsx      → /game/[roomId]
-├── round-result/
-│   └── [roomId].tsx      → /round-result/[roomId]
-├── final-result/
-│   └── [roomId].tsx      → /final-result/[roomId]
-└── settings.tsx          → /settings
-```
+Routes live in **`app/` at the repository root**, sibling to `src/`. This is the
+single authoritative convention (D02-021). `AGENTS.md` previously said `src/app/`;
+that reference was corrected at ARCH-002 and **no implementation was moved**.
+
+Expo Router file mapping (verified layout — BUILD-001):
+
+| File (verified) | URL | Expo Router route name |
+|---|---|---|
+| `app/_layout.tsx` | (navigator) | (not a route) |
+| `app/(index)/index.tsx` | `/` | `(index)` |
+| `app/nickname/index.tsx` | `/nickname` | `nickname` |
+| `app/create-room/index.tsx` | `/create-room` | `create-room` |
+| `app/join-room/index.tsx` | `/join-room` | `join-room` |
+| `app/lobby/[roomId].tsx` | `/lobby/[roomId]` | `lobby/[roomId]` |
+| `app/game/[roomId].tsx` | `/game/[roomId]` | `game/[roomId]` |
+| `app/round-result/[roomId].tsx` | `/round-result/[roomId]` | `round-result/[roomId]` |
+| `app/final-result/[roomId].tsx` | `/final-result/[roomId]` | `final-result/[roomId]` |
+| `app/settings/index.tsx` | `/settings` | `settings` |
+
+Route **names** follow the file layout, not the URL: a directory containing only an
+`index` route resolves to the directory name (`app/settings/index.tsx` yields route
+name `settings`), and a dynamic route keeps its `[param]` segment
+(`app/lobby/[roomId].tsx` yields route name `lobby/[roomId]`). `app/_layout.tsx`
+must use those names — BUILD-001 logged four `No route named` warnings until it
+did.
 
 **FORBIDDEN:** No additional routes beyond these 9. No Figma prototype bottom navigation. No design-system reference screen as an app route.
 
@@ -497,7 +514,7 @@ Four candidates evaluated by Codex review: `@shopify/react-native-skia`, `react-
 
 | Factor | Assessment |
 |---|---|
-| Expo compatibility | Requires development build (not Expo Go) — acceptable for production |
+| Expo compatibility | ✅ Bundled in Expo Go for SDK 57 (`inExpoGo: true`), and Expo Go 57.0.9 ships `librnskia.so` — no development build is required *for Skia itself* |
 | Android | ✅ Full native support |
 | iOS | ✅ Full native support (EAS cloud build) |
 | Performance | ✅ GPU-accelerated; 60fps target achievable |
@@ -509,15 +526,72 @@ Four candidates evaluated by Codex review: `@shopify/react-native-skia`, `react-
 | Maintenance | ✅ Actively maintained by Shopify |
 | Bundle impact | ~150KB uncompressed — acceptable for game app |
 
-### Condition:
+### Condition A — SDK compatibility: **SATISFIED** (verified by BUILD-001)
 
-**Before scaffold:** Verify `@shopify/react-native-skia` version compatibility with the target Expo SDK version (54+). Run `npx expo install @shopify/react-native-skia` after project creation to confirm. If incompatible, fall back to `react-native-svg` with performance degradation acknowledgment.
+Target SDK is **57.0.0**. Evidence:
 
-**If Skia is incompatible:** Use `react-native-svg` as fallback. Accept reduced smoothness at high touch frequency. Document tradeoff in ADR.
+| Check | Result |
+|---|---|
+| SDK 57 `expo/bundledNativeModules.json` pin for `@shopify/react-native-skia` | `2.6.2` (exact) |
+| Installed version | `2.6.2` |
+| `npx expo install --check` | Dependencies up to date |
+| `npx expo-doctor` | 21/21 checks passed |
+| SDK 57 Skia doc metadata | `inExpoGo: true`; platforms include `expo-go` |
+| Expo Go 57.0.9 APK native libraries | `lib/x86_64/librnskia.so` present |
 
-### Test Requirement:
+The `react-native-svg` fallback is therefore **not** triggered, and
+`react-native-svg` is not installed. (Package availability in the Expo Go APK is
+build-time/vendor evidence only — it does **not** demonstrate anything about
+runtime rendering behaviour.)
 
-Before marking this decision LOCKED: render a test stroke on device, measure frame rate at 8 simultaneous viewers, verify <200ms event propagation (NFR-001).
+### Condition B — on-device performance: **NOT SATISFIED**
+
+See "Test Requirement" below. AD-004 remains CONDITIONAL until Condition B is
+measured on a physical device.
+
+### Test Requirement: **OUTSTANDING — cannot be executed in Stage 02**
+
+Before AD-004 may be marked LOCKED: render a test stroke on a **physical device**,
+measure frame rate with **8 simultaneous viewers** rendering the same stroke
+stream, and verify **<200 ms** event propagation (NFR-001).
+
+**Status after Stage 02: NOT RUN.** No runtime Skia code exists (drawing is out of
+scope for the client foundation), no realtime transport exists, and no device was
+attached. Only build-time/APK-level availability was verified (Condition A).
+
+**Exact missing evidence — all three clauses are unmet:**
+
+| Clause | Requirement | Missing evidence |
+|---|---|---|
+| Frame rate | >=60 fps sustained local stroke rendering on a mid-tier physical device | No frame-timing instrumentation or benchmark exists; nothing has been measured |
+| 8 viewers | 8 clients render the same live stroke stream with no frame drops | Needs the Stage 3 Socket.IO server/client and 8 attached clients |
+| Latency | Typical event propagation <200 ms | Needs the Stage 3 realtime transport to time DRAW_* round-trips |
+
+**Why it cannot run yet:** the 8-viewer and <200 ms clauses depend on the Stage 3
+realtime layer, which is explicitly out of Stage 02 scope. The 60 fps clause is
+not blocked by Stage 3, but it still needs (a) new instrumentation code and (b) a
+physical device: at reconciliation time `adb devices` returned **no devices**, and
+the only emulator observed by BUILD-001 is a **shared** x86_64 emulator (host GPU,
+another app competing for foreground) — not a valid FPS target.
+
+**Protocol to close it (Stage 3, or a separately authorised spike):**
+
+1. **Frame rate (>=60 fps).** Add a drawer-canvas benchmark that draws synthetic
+   strokes at ~60 Hz and samples frame timings (Skia draw timestamps, or
+   `requestAnimationFrame` deltas) over a 30 s window. Run on a mid-tier
+   **physical** Android device and on iOS. Pass: p95 frame time <=16.7 ms with no
+   sustained jank.
+2. **8 viewers.** Run the Stage 3 server; join 8 clients (1 drawer + 7 guessers,
+   mix of physical devices); stream a continuous 30 s stroke. Pass: every guesser
+   renders without dropped frames or visual divergence.
+3. **Latency (<200 ms).** Stamp DRAW_START / DRAW_MOVE with a client send time and
+   measure mirror-arrival time on each guesser over a normal mobile network. Pass:
+   typical (p50—p95) propagation <200 ms per NFR-001.
+4. **Record** device models, OS versions, network conditions, build profile (Expo
+   Go vs development build) and raw numbers; then move AD-004 to LOCKED — or to
+   the `react-native-svg` fallback if clause 1 fails.
+
+**Until then AD-004 is CONDITIONAL and must not be cited as validated.**
 
 ---
 
@@ -776,6 +850,10 @@ Zero secrets in client code. All endpoint URLs from environment config (`app.jso
 - <200ms event propagation (NFR-001)
 - 8 simultaneous viewers rendering same stroke stream without frame drops
 
+**Validation status: none of these targets has been measured.** They are
+implementation targets, not verified results — see Section 14 (AD-004
+Condition B).
+
 ### 21.2 Optimization Strategies
 
 - Batched DRAW_MOVE events (≤10 points/packet)
@@ -860,7 +938,7 @@ Voice chat, video chat, global matchmaking, friends system, complex profiles, av
 **Status:** APPROVED
 **Evidence:** PRD §23 recommends Expo; Nara confirms EAS CLI 23.1.0 available; Node 22 compatible with SDK 54+
 **Reason:** Managed workflow reduces native build complexity; EAS enables iOS cloud builds from Windows dev machine
-**Tradeoffs:** Requires dev client build for some native features (Skia); less direct native control than bare workflow
+**Tradeoffs:** A development build may be required for some native features; less direct native control than bare workflow. *Corrected in v2.1: Skia specifically is bundled in Expo Go for SDK 57, so it is not an example of this.*
 **Impact:** Scaffold with `npx create-expo-app --template blank-typescript`
 
 ### AD-002 — Socket.IO Over Raw WebSocket
@@ -878,11 +956,11 @@ Voice chat, video chat, global matchmaking, friends system, complex profiles, av
 **Impact:** Create 5 store files; add State Writer Map (Section 7) as non-negotiable implementation requirement
 
 ### AD-004 — @shopify/react-native-skia as Drawing Library
-**Status:** UNDER_REVIEW — SDK COMPATIBILITY CHECK REQUIRED
-**Evidence:** Codex evaluation: best performance (GPU-accelerated), best DRAW_* event mapping, strong TS support
+**Status:** CONDITIONAL — SDK COMPATIBILITY VERIFIED, PERFORMANCE VALIDATION PENDING
+**Evidence:** Codex evaluation (best performance, best DRAW_* event mapping, strong TS support). BUILD-001 compatibility verification: SDK 57 pins `2.6.2`; installed `2.6.2`; `expo install --check` and `expo-doctor` pass; SDK 57 doc metadata `inExpoGo: true`; Expo Go 57.0.9 ships `librnskia.so`
 **Reason:** 8-player simultaneous rendering requires GPU acceleration; SVG approaches risk jank at 60fps
-**Tradeoffs:** Requires development build (not Expo Go); ~150KB uncompressed bundle; steeper learning curve than SVG
-**Impact:** Verify `npx expo install @shopify/react-native-skia` compatibility after scaffold; fallback to react-native-svg if incompatible
+**Tradeoffs:** ~150KB uncompressed bundle; steeper learning curve than SVG. *Corrected in v2.1: Skia does **not** require a development build — it is bundled in Expo Go for SDK 57. A development build may later be required by other native dependencies, but not by Skia.*
+**Impact:** Dependency pinned and SDK-compatible. Still open: the on-device 60 fps / 8-viewer / <200 ms test (Section 14). The `react-native-svg` fallback remains documented but untriggered
 
 ### AD-005 — Compartmentalized Secret Word Stores
 **Status:** APPROVED
@@ -943,21 +1021,107 @@ These items are intentionally deferred to Stage 3 (Game State Machine) or later:
 | D-DEF-007 | Reconnect grace period duration | Configurable server parameter; client just displays appropriate UI | Stage 3 |
 | D-DEF-008 | Specific Figma font names and weights | Need to extract from Figma export; implementation detail | Stage 3 UI |
 | D-DEF-009 | Exact scoring multiplier (drawer bonus) | Configurable per room; server-side math | Stage 3 |
-| D-DEF-010 | `@shopify/react-native-skia` SDK compatibility verification | Cannot verify until Expo project is scaffolded | Pre-scaffold check |
+| D-DEF-010 | `@shopify/react-native-skia` SDK compatibility verification | **RESOLVED (BUILD-001)** — verified compatible with SDK 57 at `2.6.2`; closed. See Section 14 Condition A | Closed |
 
 ---
 
 ## 27. Scaffolding Prerequisites
 
+**Status: COMPLETED.** Scaffolding was executed under BUILD-001 after all
+prerequisites below were satisfied. The checklist is retained for history.
+
 **Before `npx create-expo-app` may execute, ALL of the following must be true:**
 
-- [ ] This ADR (version 2.0) is the current authoritative document
-- [ ] `decision.md` ledger reflects all locked decisions (Section 25)
-- [ ] Git repository initialized at `D:/doodlebee`
-- [ ] `.gitignore` for Expo/React Native project present
-- [ ] Architecture Lead has reviewed and approved this ADR
-- [ ] All `APPROVED` and `APPROVED WITH CONDITIONS` decisions are understood by implementation agent
-- [ ] `UNDER_REVIEW` items (AD-004, D-DEF-010) have explicit mitigation plan documented
-- [ ] `Deferred` items are understood as out-of-scope for Stage 2 implementation
+- [x] This ADR is the current authoritative document (now version 2.1)
+- [x] `decision.md` ledger reflects all locked decisions (Section 25)
+- [x] Git repository initialized at `D:/doodlebee`
+- [x] `.gitignore` for Expo/React Native project present
+- [x] Architecture Lead has reviewed and approved this ADR
+- [x] All `APPROVED` and `APPROVED WITH CONDITIONS` decisions are understood by implementation agent
+- [x] `UNDER_REVIEW` items have an explicit mitigation plan documented — D-DEF-010 is now RESOLVED (Section 26); AD-004 remains CONDITIONAL under the Section 14 test plan
+- [x] `Deferred` items are understood as out-of-scope for Stage 2 implementation
 
-**DO NOT scaffold until all checkboxes above are satisfied.**
+**DO NOT scaffold until all checkboxes above are satisfied.** Superseded —
+Stage 02 scaffolding is complete and verified (BUILD-001).
+
+---
+
+## 28. Architecture Lead Reconciliation — BUILD-001 (v2.1)
+
+Recorded by the Architecture Lead after BUILD-001 completed and was verified. This
+section resolves the items BUILD-001 flagged for review. Full execution entry:
+`Execution.md` → `ARCH-002`.
+
+### RC-001 — Route directory convention: `app/` is authoritative
+
+**Decision.** Routes live in `app/` at the repository root, sibling to `src/`.
+`AGENTS.md`'s `src/app/` reference was the outlier. Recorded as D02-021.
+
+**Evidence.** ADR Section 5 documents `app/`; `ProjectDocs/02-client-architecture.md`
+Section 3 proposes `app/` alongside `src/`; the verified implementation uses `app/`
+and is green on typecheck, lint, format, 12/12 tests, `expo install --check`,
+`expo-doctor` 21/21 and an Android Expo Go smoke test. Expo Router supports both
+layouts, so this was a documentation conflict, not a defect.
+
+**Action.** `AGENTS.md` corrected. **No implementation was moved.**
+
+### RC-002 — Deep-link scheme `doodlebee`: APPROVED WITH CONDITIONS
+
+**Decision.** Keep `scheme: "doodlebee"` in `app.json` and record it formally
+(D02-022). It is no longer an undocumented, silently accepted value.
+
+**Evidence.** No approved product document requires deep linking, so there is no
+*product* requirement. A scheme is nevertheless the standard build-time
+configuration that makes Expo Router's automatic deep linking well-defined. Expo's
+SDK 57 linking documentation also states that when `scheme` is undefined, prebuild
+falls back to `android.package` / `ios.bundleIdentifier` as the app's schemes
+(`com.doodlebee.app` here), so the explicit value is not load-bearing for a
+production build — but it removes ambiguity and the developer-time warning
+BUILD-001 observed. The value `doodlebee` is derived from the approved `slug`
+(`doodlebee`), not invented.
+
+**Conditions.**
+- The scheme is a **platform configuration value only**. It creates **no** public
+  deep-link contract and exposes **no** route as a supported link target.
+- Any deep-link *surface* (which routes are linkable, universal links, Android App
+  Links) requires separate approval in a later stage.
+- If a product requirement later dictates another scheme, changing it is a
+  one-line `app.json` change plus a rebuild.
+
+**Rejected alternative.** Removing `scheme` and relying on the prebuild default
+(`com.doodlebee.app://`). Rejected because it reintroduces the development-time
+warning and leaves an implicit, less predictable public scheme.
+
+### RC-003 — AD-004 stays CONDITIONAL
+
+**Decision.** AD-004 remains CONDITIONAL. SDK compatibility is verified (Section 14
+Condition A); the performance condition is not. **No claim of validated runtime
+rendering performance is made.** The exact missing evidence and the closing
+protocol are in Section 14.
+
+### RC-004 — npm audit advisories: recorded, not "fixed" (non-blocking)
+
+**Decision.** Record the advisories; do **not** downgrade Expo/SDK to satisfy
+`npm audit`. Recorded as D02-023.
+
+**Verified state (2026-09-30).** 14 moderate entries — 0 low, 0 high, 0 critical
+— from 2 underlying advisories:
+
+| Advisory | Package | Reached via | npm's suggested "fix" |
+|---|---|---|---|
+| Missing buffer bounds check in v3/v5/v6 when `buf` is provided | `uuid <11.1.1` | `expo` → `@expo/config-plugins` → `xcode` → `uuid` | `expo@46` (semver-major downgrade) |
+| DoS via exponential decoding of malformed percent-encoded input | `decode-uri-component <=0.4.2` | `expo-router` → `query-string` → `decode-uri-component` | `expo-router@5.1.11` (semver-major downgrade) |
+
+Both paths are build/dev toolchain rather than shipped app runtime code, and npm's
+only offered remediation is a semver-major SDK downgrade that would break SDK 57.
+Not applied. Re-evaluate on every SDK upgrade.
+
+### RC-005 — Corrections applied to v2.0
+
+- Section 14 / AD-004 / AD-001: the claim that Skia "requires a development build
+  (not Expo Go)" was **wrong for SDK 57** and is corrected to the verified facts.
+- Section 5: the Expo Router file mapping was updated from the flat form
+  (`app/(index).tsx`) to the verified directory form (`app/(index)/index.tsx`),
+  with the route-name rule that this implies.
+- Section 26: D-DEF-010 closed as resolved.
+- Section 21.1: performance targets explicitly marked as unmeasured.

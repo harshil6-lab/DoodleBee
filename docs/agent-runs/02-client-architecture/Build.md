@@ -334,3 +334,28 @@ Enforced three independent ways:
 All 16 approved implementation items are delivered; typecheck, lint, format,
 tests, dependency alignment, Expo diagnostics, config validation, Metro bundling
 and an on-device Android run are green. Stage 03 has **not** been started.
+
+---
+
+## 14. Post-build reconciliation (ARCH-002)
+
+The review items this build flagged were reconciled by the Architecture Lead in
+ARCH-002 (`Execution.md`); this record is otherwise unchanged.
+
+| BUILD-001 item | Disposition |
+|---|---|
+| §11.1 package name | ACCEPTED |
+| §11.2 directory-form routes vs ADR §5 flat form | ACCEPTED; ADR §5 mapping corrected in v2.1 |
+| §11.3 flat ESLint config | ACCEPTED (Expo SDK 53+ requirement) |
+| §11.4 `devDependencies` reclassification | ACCEPTED |
+| §11.5 `app.json` schema cleanup | ACCEPTED |
+| §11.6 `scheme: "doodlebee"` | APPROVED WITH CONDITIONS — D02-022 |
+| §11.7 `tsconfig.json` `include` | ACCEPTED (Expo-managed) |
+| §11.8 `.prettierignore` | ACCEPTED |
+| §11.9 route directory conflict | RESOLVED — `app/` authoritative (D02-021); `AGENTS.md` corrected |
+| §12.1 AD-004 CONDITIONAL | CONFIRMED — remains CONDITIONAL; test protocol defined in ADR §14 |
+| §12.2 `Room.status` not modelled | CONFIRMED — no approved values exist |
+| §12.3 typed routes deferred | CONFIRMED — deferred to the UI stage |
+| §12.4 `react-native-svg` absent | CONFIRMED — fallback not triggered |
+| §10.1 npm audit advisories | ACCEPTED as non-blocking — D02-023 |
+| ADR §14 Skia "not in Expo Go" | CORRECTED in ADR v2.1 — Skia is bundled in Expo Go for SDK 57 |

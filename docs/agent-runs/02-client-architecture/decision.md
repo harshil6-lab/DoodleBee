@@ -1,9 +1,9 @@
 # Stage 02 — Decision Ledger
 
 **Stage:** Client Architecture
-**Version:** 2.0 (Architecture Lead Reconciliation)
-**Date:** 2026-09-26
-**Status:** LOCKED
+**Version:** 2.1 (Architecture Lead Reconciliation - BUILD-001)
+**Date:** 2026-09-30
+**Status:** LOCKED — one decision (D02-008 / AD-004) CONDITIONAL; see Open Conditions
 
 ---
 
@@ -32,7 +32,7 @@
 | D02-005 | Zustand | APPROVED_WITH_CONDITIONS | PRD §23 + Codex review | Domain-split stores (5); State Writer Map mandatory |
 | D02-006 | REST (Fetch) | APPROVED | PRD §23 + Codex review | Thin wrapper; Axios rejected for unnecessary bundle cost |
 | D02-007 | Socket.IO | APPROVED | Codex review (12-factor analysis) | Reconnection, rooms, ACKs, debugging justify +25KB bundle |
-| D02-008 | Drawing library | UNDER_REVIEW — SDK COMPATIBILITY | Codex review (4-library evaluation) | @shopify/react-native-skia recommended; verify with `npx expo install` post-scaffold |
+| D02-008 | Drawing library | APPROVED_WITH_CONDITIONS | Codex review + BUILD-001 SDK 57 verification | @shopify/react-native-skia 2.6.2 pinned and verified SDK 57 compatible; **on-device performance validation (60 fps / 8 viewers / <200 ms) outstanding** — AD-004 stays CONDITIONAL (ADR §14) |
 | D02-009 | Fastify vs NestJS | DEFERRED | Backend not in Stage 02 scope | Server architecture deferred to Stage 3 |
 | D02-010 | Reconnect strategy | APPROVED_WITH_CONDITIONS | Codex review + PRD FR-010 | Snapshot-based restoration; exact protocol in Stage 3 |
 | D02-011 | Session persistence | APPROVED_WITH_CONDITIONS | Codex review | zustand/persist for nickname + reconnectInfo only |
@@ -45,6 +45,29 @@
 | D02-018 | State Writer Map | APPROVED_WITH_CONDITIONS | Codex CRITICAL finding | Mandatory append to ADR; every state field has one writer |
 | D02-019 | Design tokens | APPROVED | Design.md §8 | Centralized `tokens.ts`; components consume tokens only |
 | D02-020 | V1 scope boundary | APPROVED | PRD §35, Agents.md §7 | Explicit exclusion list enforced |
+| D02-021 | Route directory convention | APPROVED | ADR §5 + `ProjectDocs/02-client-architecture.md` §3 + verified implementation | Routes live in `app/` (sibling to `src/`). `AGENTS.md` said `src/app/` and was the outlier; `AGENTS.md` was corrected. No implementation was moved |
+| D02-022 | Deep-link scheme `doodlebee` | APPROVED_WITH_CONDITIONS | BUILD-001 deviation + Expo SDK 57 linking docs | Scheme kept and recorded. Platform configuration only: creates no public deep-link contract and exposes no linkable route. Value derives from the approved `slug` (`doodlebee`). Any deep-link surface needs separate approval |
+| D02-023 | npm audit advisories | ACCEPTED (non-blocking) | `npm audit`, 2026-09-30 | 14 moderate transitive build-toolchain advisories from 2 root advisories; 0 low/high/critical. Not remediated: npm's only fix is a semver-major SDK downgrade. Re-check each SDK upgrade |
+
+---
+
+## Accepted BUILD-001 Deviations
+
+Dispositions recorded at ARCH-002 (see `Execution.md`). None of these changes an
+architecture decision; each is a platform/toolchain requirement that BUILD-001
+verified with a green toolchain (typecheck, lint, format, 12/12 tests,
+`expo install --check`, `expo-doctor` 21/21, Android device smoke test).
+
+| # | Deviation | Disposition |
+|---|---|---|
+| 1 | Package name `doodlebee-temp` → `doodlebee` | ACCEPTED — scaffold placeholder; matches `slug` |
+| 2 | Route files use the directory form (`app/(index)/index.tsx`) where ADR §5 showed the flat form | ACCEPTED — URLs are identical; route **names** differ. ADR §5 mapping corrected (v2.1) so `_layout.tsx` names match |
+| 3 | `.eslintrc.js` replaced by `eslint.config.js` (flat config) | ACCEPTED — required by Expo SDK 53+ |
+| 4 | `jest` / `jest-expo` / `@types/jest` moved from `dependencies` to `devDependencies` | ACCEPTED — correct classification; Expo CLI mis-filed them on Windows |
+| 5 | `app.json`: removed schema-invalid `newArchEnabled` and legacy top-level `splash` | ACCEPTED — both invalid in the SDK 57 schema |
+| 6 | `app.json`: `scheme: "doodlebee"` added | APPROVED_WITH_CONDITIONS — D02-022 |
+| 7 | Expo CLI rewrote `tsconfig.json` `include`, dropping `.expo/types/**/*.ts` and `expo-env.d.ts` | ACCEPTED — Expo-managed; this closes off typed routes unless re-added (deferred to the UI stage) |
+| 8 | Added `.prettierignore` (excludes `*.md` and `.refact/`) | ACCEPTED — keeps `format:check` meaningful for code without reflowing the locked ADR and agent-run logs |
 
 ---
 
@@ -56,4 +79,16 @@ None. This is the first comprehensive reconciliation of all prior proposals.
 
 ## Blocked Decisions
 
-None. All decisions are either APPROVED, APPROVED_WITH_CONDITIONS, UNDER_REVIEW (with explicit mitigation), or DEFERRED.
+None. All decisions are either APPROVED, APPROVED_WITH_CONDITIONS, or DEFERRED.
+D02-008 is APPROVED_WITH_CONDITIONS: its remaining condition is documented, not blocking.
+
+---
+
+## Open Conditions (not blockers)
+
+| Decision | Condition | Closes when |
+|---|---|---|
+| D02-008 / AD-004 | 60 fps, 8 simultaneous viewers, <200 ms propagation measured on device | Stage 3 — protocol in ADR §14 |
+| D02-022 | No public deep-link surface until separately approved | Any later stage that adds links |
+| — | Typed routes (`experiments.typedRoutes`) deferred (beta; needs generated `.expo/types` before CI typecheck) | UI stage |
+| — | `react-native-gesture-handler@3.3.0` installed transitively while SDK 57 pins `~2.32.0` | Before using gesture-handler directly |

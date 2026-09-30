@@ -62,3 +62,6 @@ xcuserdata/
 # Figma reference assets (large ZIP)
 DoodleBee_FIgma_screens.zip
 Draw_and_Guess_PRD.pdf
+
+# Agent tooling local state (Refact)
+.refact/
