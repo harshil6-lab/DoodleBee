@@ -423,8 +423,8 @@ Found a bug? Don't swat it, [open an issue](https://github.com/YOUR_USERNAME/doo
 ## 📈 STAR HISTORY
 
 <p align="center">
-  <a href="https://star-history.com/#YOUR_USERNAME/doodlebee&Date">
-    <img src="https://api.star-history.com/svg?repos=YOUR_USERNAME/doodlebee&type=Date" alt="Star History Chart" width="600"/>
+  <a href="https://star-history.com/harshil6-lab/doodlebee&Date">
+    <img src="https://api.star-history.com/svg?repos=harshil6-lab/doodlebee&type=Date" alt="Star History Chart" width="600"/>
   </a>
 </p>
 
