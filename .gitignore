@@ -65,3 +65,6 @@ Draw_and_Guess_PRD.pdf
 
 # Agent tooling local state (Refact)
 .refact/
+
+# Agent run docs (local scratch)
+docs/agent-runs/
