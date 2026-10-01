@@ -91,6 +91,8 @@ export enum ClientToServerEvent {
   DrawMove = 'draw:move',
   DrawEnd = 'draw:end',
   ClearCanvas = 'canvas:clear',
+  /** Stage 03 E-05: reconnect request (ADR AD-009). */
+  RequestStateSnapshot = 'request:state:snapshot',
 }
 
 export enum ServerToClientEvent {
@@ -111,6 +113,17 @@ export enum ServerToClientEvent {
   ScoreUpdated = 'score:updated',
   GameFinished = 'game:finished',
   ConnectionLost = 'connection:lost',
+  /** Stage 03 E-01: the writer of `room.config` (ADR section 7). */
+  RoomConfigUpdated = 'room:config:updated',
+  /** Stage 03 E-02: the single writer of `game.chats` (ADR section 7). */
+  ChatMessage = 'chat:message',
+  /** Stage 03 E-03: the writers of `Player.isConnected`. */
+  PlayerDisconnected = 'player:disconnected',
+  PlayerReconnected = 'player:reconnected',
+  /** Stage 03 E-04: lets peers learn of a canvas clear (ADR section 13.4). */
+  CanvasCleared = 'canvas:cleared',
+  /** Stage 03 E-05: reconnect response (ADR AD-009). */
+  StateSnapshot = 'response:state:snapshot',
 }
 
 // ------------------------------------------------------- Public payloads ----
@@ -160,6 +173,203 @@ export interface GameFinishedPayload {
   finalScores: Record<string, number>;
   rankings: { playerId: string; rank: number; score: number }[];
   winnerId: string;
+}
+
+// ------------------------------- Stage 03 additive contract (E-01 ... E-05) -
+// Additions required by `realtime-contract.md` section 8, mirroring
+// `shared/contract/server-payloads.ts` and `reconnect-protocol.md` section 3.
+// Nothing above is renamed and no locked payload field changes meaning.
+
+/** `state-machine.md` section 1.1. **PROPOSED** value set (D03-026 / OC-4). */
+export type RoomStatus = 'WAITING' | 'IN_GAME' | 'CLOSED';
+
+export type Role = 'DRAWER' | 'GUESSER';
+
+/** The exactly-three round-end triggers (D03-012). */
+export type RoundEndReason =
+  | 'TIMER_EXPIRED'
+  | 'ALL_GUESSERS_CORRECT'
+  | 'DRAWER_ABANDONED'
+  | 'SERVER_TERMINATED';
+
+/** `realtime-contract.md` section 9.3. */
+export type ChatMessageType = 'NORMAL' | 'GUESS' | 'SYSTEM' | 'CORRECT_GUESS';
+
+/** E-01 - the writer of `room.config`. Carries no secret. */
+export interface RoomConfigUpdatedPayload {
+  type: ServerToClientEvent.RoomConfigUpdated;
+  config: RoomConfig;
+  version: number;
+}
+
+/** E-02 - one event with a discriminator for the whole chat ring. */
+export interface ChatMessagePayload {
+  type: ServerToClientEvent.ChatMessage;
+  id: string;
+  messageType: ChatMessageType;
+  /** null for SYSTEM messages. */
+  senderPlayerId: string | null;
+  senderNickname: string | null;
+  text: string;
+  /** Server clock, epoch ms. */
+  createdAt: number;
+  version: number;
+}
+
+/** E-02 - a wrong/close guess, mirrored into `game.chats`. No secret word. */
+export interface GuessSubmittedPayload {
+  type: ServerToClientEvent.GuessSubmitted;
+  playerId: string;
+  nickname: string;
+  /** The guesser's own text, which by definition is not the secret word. */
+  text: string;
+  result: 'WRONG' | 'CLOSE';
+  version: number;
+}
+
+/** A `game.chats` / snapshot `chat[]` entry. */
+export type ChatEntry = ChatMessagePayload | GuessSubmittedPayload;
+
+/** E-03 - the writer of `Player.isConnected` (false). */
+export interface PlayerDisconnectedPayload {
+  type: ServerToClientEvent.PlayerDisconnected;
+  playerId: string;
+  /** Server clock, epoch ms, at which the grace period expires. */
+  graceDeadline: number;
+  version: number;
+}
+
+/** E-03 - the writer of `Player.isConnected` (true). */
+export interface PlayerReconnectedPayload {
+  type: ServerToClientEvent.PlayerReconnected;
+  playerId: string;
+  version: number;
+}
+
+/** E-04 - lets peers learn that the canvas was cleared. */
+export interface CanvasClearedPayload {
+  type: ServerToClientEvent.CanvasCleared;
+  roundNumber: number;
+  version: number;
+}
+
+/**
+ * A stroke as replayed inside a snapshot (`shared/contract` `StrokeSchema`).
+ * Distinct from the local drawing `Stroke` above: the wire shape uses
+ * `strokeId` and carries no `erased` flag. A separate name avoids changing
+ * the locked Stage 02 `Stroke`.
+ */
+export interface SnapshotStroke {
+  strokeId: string;
+  color: string;
+  brushSize: number;
+  points: Point[];
+}
+
+/** A roster entry inside a snapshot. No secret, no drawer-private field. */
+export interface PublicPlayer {
+  playerId: string;
+  nickname: string;
+  score: number;
+  isConnected: boolean;
+  isHost: boolean;
+  seatOrder: number;
+}
+
+/** The round timer as the client renders it. Never a countdown. */
+export interface RoundTimerState {
+  roundEndTime: number | null;
+  paused: boolean;
+}
+
+export interface LeaderboardEntry {
+  playerId: string;
+  nickname: string;
+  score: number;
+  rank: number;
+}
+
+export interface SnapshotRoom {
+  roomId: string;
+  roomCode: string;
+  roomName: string;
+  /** PROPOSED value set (D03-026 / OC-4). */
+  status: RoomStatus;
+  hostPlayerId: string;
+  config: RoomConfig;
+}
+
+export interface SnapshotYou {
+  playerId: string;
+  nickname: string;
+  role: Role;
+  score: number;
+  hasGuessedCorrectly: boolean;
+}
+
+export interface SnapshotGame {
+  gameId: string | null;
+  phase: GamePhase;
+  roundNumber: number;
+  roundsPlanned: number;
+}
+
+export interface CorrectGuesserEntry {
+  playerId: string;
+  nickname: string;
+  rank: number;
+  points: number;
+}
+
+export interface SnapshotRound {
+  roundId: string | null;
+  drawerPlayerId: string | null;
+  maskedWord: string;
+  revealedPositions: number[];
+  hintsRemaining: number;
+  timer: RoundTimerState;
+  endReason?: RoundEndReason;
+  /** `ROUND_FINISHED` only: the round is over, so the word is safe. */
+  word?: string;
+  /**
+   * PRESENT ONLY when `you.role === 'DRAWER'` and the phase is `ROUND_ACTIVE`.
+   * The server deletes the property (never nulls it) for a guesser; the
+   * drawer-only variant in `./drawer-private` makes it required.
+   */
+  secretWord?: string;
+  /** `STARTING` only. */
+  startingDeadline?: number;
+  /** `ROUND_FINISHED` only. */
+  resultsDeadline?: number;
+  /** `NEXT_ROUND` only. */
+  nextDrawerPlayerId?: string;
+}
+
+/**
+ * E-05 - `response:state:snapshot` (`reconnect-protocol.md` section 3).
+ *
+ * This is the public projection: a guesser never receives
+ * `round.secretWord`. Only the current drawer's snapshot carries it, and that
+ * drawer-only typed variant lives in `./drawer-private`.
+ */
+export interface StateSnapshotPayload {
+  type: ServerToClientEvent.StateSnapshot;
+  /** Room sequence at projection time. */
+  version: number;
+  /** Server clock, epoch ms, for clock-offset / countdown rendering. */
+  serverNow: number;
+  room: SnapshotRoom;
+  players: PublicPlayer[];
+  you: SnapshotYou;
+  game: SnapshotGame;
+  round: SnapshotRound;
+  correctGuessers: CorrectGuesserEntry[];
+  /** Last 30 s while `ROUND_ACTIVE`, otherwise empty. */
+  strokes: SnapshotStroke[];
+  /** Last 50 chat-ring entries. */
+  chat: ChatEntry[];
+  scores: Record<string, number>;
+  leaderboard: LeaderboardEntry[];
 }
 
 // ------------------------------------------------------------ API types -----

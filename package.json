@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watchAll",
-    "doctor": "npx expo-doctor"
+    "doctor": "npx expo-doctor",
+    "contract:check": "npm run typecheck && jest --ci __tests__/unit/contractConformance.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -53,6 +54,10 @@
     "typescript": "~6.0.3"
   },
   "jest": {
-    "preset": "jest-expo"
+    "preset": "jest-expo",
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "<rootDir>/server/"
+    ]
   }
 }
