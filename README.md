@@ -32,9 +32,9 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/github/stars/YOUR_USERNAME/doodlebee?style=social"/>
-  <img src="https://img.shields.io/github/forks/YOUR_USERNAME/doodlebee?style=social"/>
-  <img src="https://img.shields.io/github/issues/YOUR_USERNAME/doodlebee?color=FFD500&style=flat-square"/>
+  <img src="https://img.shields.io/github/stars/harshil6-lab/doodlebee?style=social"/>
+  <img src="https://img.shields.io/github/forks/harshil6-lab/doodlebee?style=social"/>
+  <img src="https://img.shields.io/github/issues/harshil6-lab/doodlebee?color=FFD500&style=flat-square"/>
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square"/>
 </p>
 
@@ -286,7 +286,7 @@ Every event has a schema (validated with Zod):
 
 ```bash
 # 1. Clone the hive
-git clone https://github.com/YOUR_USERNAME/doodlebee.git
+git clone https://github.com/harshil6-lab/doodlebee.git
 cd doodlebee
 
 # 2. Start the backend
@@ -416,7 +416,7 @@ V1 is only beaten when **this** runs with zero desyncs:
 4. ✅ Run tests and lint
 5. 📬 Open a Pull Request
 
-Found a bug? Don't swat it, [open an issue](https://github.com/YOUR_USERNAME/doodlebee/issues). 🐛
+Found a bug? Don't swat it, [open an issue](https://github.com/harshil6-lab/doodlebee/issues). 🐛
 
 ---
 
