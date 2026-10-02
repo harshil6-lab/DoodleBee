@@ -15,8 +15,8 @@
  */
 import type { Socket } from 'socket.io-client';
 import { useConnectionStore } from '../stores/connection.store';
+import { useRoomStore } from '../stores/room.store';
 import { useSessionStore } from '../stores/session.store';
-import { useUiStore } from '../stores/ui.store';
 import type { ServerToClientEventName } from '../../shared/contract/events';
 import { logger } from '../utils/logger';
 
@@ -66,38 +66,65 @@ function handleReconnectFailed(): void {
 // --------------------------------------------------- Stub handlers -----------
 
 /** Log a warning for an unimplemented handler. Filled in later phases. */
-function stubHandler(eventName: ServerToClientEventName, ...args: unknown[]): void {
-  logger.warn({ event: 'unimplemented-handler', eventName, argCount: args.length });
+function stubHandler(
+  eventName: ServerToClientEventName,
+  ...args: unknown[]
+): void {
+  logger.warn({
+    event: 'unimplemented-handler',
+    eventName,
+    argCount: args.length,
+  });
 }
 
 // Event-specific stubs that log the event name for traceability.
-const stubRoomJoined = (...args: unknown[]) => stubHandler('room:joined', ...args);
-const stubPlayerJoined = (...args: unknown[]) => stubHandler('player:joined', ...args);
-const stubPlayerLeft = (...args: unknown[]) => stubHandler('player:left', ...args);
-const stubHostTransferred = (...args: unknown[]) => stubHandler('host:transferred', ...args);
-const stubRoomConfigUpdated = (...args: unknown[]) => stubHandler('room:config:updated', ...args);
-const stubGameStarted = (...args: unknown[]) => stubHandler('game:started', ...args);
-const stubRoundStarted = (...args: unknown[]) => stubHandler('round:started', ...args);
-const stubDrawerSelected = (...args: unknown[]) => stubHandler('drawer:selected', ...args);
-const stubDrawStart = (...args: unknown[]) => stubHandler('draw:start', ...args);
+const stubRoomJoined = (...args: unknown[]) =>
+  stubHandler('room:joined', ...args);
+const stubPlayerJoined = (...args: unknown[]) =>
+  stubHandler('player:joined', ...args);
+const stubPlayerLeft = (...args: unknown[]) =>
+  stubHandler('player:left', ...args);
+const stubHostTransferred = (...args: unknown[]) =>
+  stubHandler('host:transferred', ...args);
+const stubRoomConfigUpdated = (...args: unknown[]) =>
+  stubHandler('room:config:updated', ...args);
+const stubGameStarted = (...args: unknown[]) =>
+  stubHandler('game:started', ...args);
+const stubRoundStarted = (...args: unknown[]) =>
+  stubHandler('round:started', ...args);
+const stubDrawerSelected = (...args: unknown[]) =>
+  stubHandler('drawer:selected', ...args);
+const stubDrawStart = (...args: unknown[]) =>
+  stubHandler('draw:start', ...args);
 const stubDrawMove = (...args: unknown[]) => stubHandler('draw:move', ...args);
 const stubDrawEnd = (...args: unknown[]) => stubHandler('draw:end', ...args);
-const stubCanvasCleared = (...args: unknown[]) => stubHandler('canvas:cleared', ...args);
-const stubGuessSubmitted = (...args: unknown[]) => stubHandler('guess:submitted', ...args);
-const stubGuessCorrect = (...args: unknown[]) => stubHandler('guess:correct', ...args);
-const stubHintRevealed = (...args: unknown[]) => stubHandler('hint:revealed', ...args);
-const stubRoundEnded = (...args: unknown[]) => stubHandler('round:ended', ...args);
-const stubScoreUpdated = (...args: unknown[]) => stubHandler('score:updated', ...args);
-const stubGameFinished = (...args: unknown[]) => stubHandler('game:finished', ...args);
-const stubPlayerDisconnected = (...args: unknown[]) => stubHandler('player:disconnected', ...args);
-const stubPlayerReconnected = (...args: unknown[]) => stubHandler('player:reconnected', ...args);
+const stubCanvasCleared = (...args: unknown[]) =>
+  stubHandler('canvas:cleared', ...args);
+const stubGuessSubmitted = (...args: unknown[]) =>
+  stubHandler('guess:submitted', ...args);
+const stubGuessCorrect = (...args: unknown[]) =>
+  stubHandler('guess:correct', ...args);
+const stubHintRevealed = (...args: unknown[]) =>
+  stubHandler('hint:revealed', ...args);
+const stubRoundEnded = (...args: unknown[]) =>
+  stubHandler('round:ended', ...args);
+const stubScoreUpdated = (...args: unknown[]) =>
+  stubHandler('score:updated', ...args);
+const stubGameFinished = (...args: unknown[]) =>
+  stubHandler('game:finished', ...args);
+const stubPlayerDisconnected = (...args: unknown[]) =>
+  stubHandler('player:disconnected', ...args);
+const stubPlayerReconnected = (...args: unknown[]) =>
+  stubHandler('player:reconnected', ...args);
 const stubConnectionLost = (_payload: unknown): void => {
   const { setDisconnected } = useConnectionStore.getState();
   logger.warn({ event: 'connection-lost-stub' });
   setDisconnected('connection lost');
 };
-const stubChatMessage = (...args: unknown[]) => stubHandler('chat:message', ...args);
-const stubResponseStateSnapshot = (...args: unknown[]) => stubHandler('response:state:snapshot', ...args);
+const stubChatMessage = (...args: unknown[]) =>
+  stubHandler('chat:message', ...args);
+const stubResponseStateSnapshot = (...args: unknown[]) =>
+  stubHandler('response:state:snapshot', ...args);
 
 // ------------------------------------------------------ Registration ---------
 
@@ -106,7 +133,9 @@ const stubResponseStateSnapshot = (...args: unknown[]) => stubHandler('response:
  * Returns a cleanup function that removes all listeners.
  */
 export function registerDispatcher(socket: Socket): () => void {
-  const handlers: Partial<Record<ServerToClientEventName, (...args: unknown[]) => void>> = {
+  const handlers: Partial<
+    Record<ServerToClientEventName, (...args: unknown[]) => void>
+  > = {
     'room:joined': stubRoomJoined,
     'player:joined': stubPlayerJoined,
     'player:left': stubPlayerLeft,
@@ -133,14 +162,70 @@ export function registerDispatcher(socket: Socket): () => void {
   };
 
   // Override stubs with real handlers where available.
-  const realHandlers: Partial<Record<ServerToClientEventName, (...args: unknown[]) => void>> = {
+  const realHandlers: Partial<
+    Record<ServerToClientEventName, (...args: unknown[]) => void>
+  > = {
     'room:joined': (_payload: unknown) => {
       logger.info({ event: 'room-joined' });
     },
+    'player:joined': (payload: unknown) => {
+      const p = payload as {
+        player?: {
+          playerId: string;
+          nickname: string;
+          isHost: boolean;
+          score: number;
+          isConnected: boolean;
+        };
+        version: number;
+      };
+      if (p.version !== undefined && !shouldApply(p.version)) return;
+      if (!p.player) return; // defensive: malformed payload
+      useRoomStore.getState().addPlayer({
+        playerId: p.player.playerId,
+        nickname: p.player.nickname,
+        isHost: p.player.isHost,
+        score: p.player.score,
+        isConnected: p.player.isConnected,
+      });
+      logger.info({ event: 'player-joined', playerId: p.player.playerId });
+    },
+    'player:left': (payload: unknown) => {
+      const p = payload as { playerId: string; version: number };
+      if (p.version !== undefined && !shouldApply(p.version)) return;
+      useRoomStore.getState().removePlayer(p.playerId);
+      logger.info({ event: 'player-left', playerId: p.playerId });
+    },
+    'host:transferred': (payload: unknown) => {
+      const p = payload as { hostPlayerId: string; version: number };
+      if (p.version !== undefined && !shouldApply(p.version)) return;
+      useRoomStore.getState().setHost(p.hostPlayerId);
+      logger.info({ event: 'host-transferred', hostPlayerId: p.hostPlayerId });
+    },
+    'room:config:updated': (payload: unknown) => {
+      const p = payload as {
+        config: {
+          roomName?: string;
+          maxPlayers?: number;
+          rounds?: number;
+          roundDuration?: number;
+          hints?: number;
+        };
+        version: number;
+      };
+      if (p.version !== undefined && !shouldApply(p.version)) return;
+      useRoomStore.getState().updateConfig({
+        roomName: p.config.roomName,
+        maxPlayers: p.config.maxPlayers,
+        rounds: p.config.rounds,
+        roundDuration: p.config.roundDuration,
+        hints: p.config.hints,
+      });
+      logger.info({ event: 'room-config-updated' });
+    },
     'connection:lost': (payload: unknown) => {
-      // Parse the connection:lost payload to determine action.
-      // Shape: { type: 'connection:lost', code: string, retryable: boolean }
-      const p = payload as { code?: string };
+      const p = payload as { code?: string; version?: number };
+      if (p.version !== undefined && !shouldApply(p.version)) return;
       if (p.code === 'SESSION_EXPIRED') {
         useSessionStore.getState().clearAll();
         useConnectionStore.getState().setExpired();
@@ -162,9 +247,18 @@ export function registerDispatcher(socket: Socket): () => void {
 
   // Lifecycle events (not in the event name map).
   (socket as Socket).on('connect', handleConnect);
-  (socket as Socket).on('disconnect', handleDisconnect as (...args: Array<unknown>) => void);
-  (socket as Socket).on('reconnect', handleReconnect as (...args: Array<unknown>) => void);
-  (socket as Socket).on('reconnect_failed', handleReconnectFailed as (...args: Array<unknown>) => void);
+  (socket as Socket).on(
+    'disconnect',
+    handleDisconnect as (...args: unknown[]) => void,
+  );
+  (socket as Socket).on(
+    'reconnect',
+    handleReconnect as (...args: unknown[]) => void,
+  );
+  (socket as Socket).on(
+    'reconnect_failed',
+    handleReconnectFailed as (...args: unknown[]) => void,
+  );
 
   return () => {
     for (const [event, handler] of Object.entries(handlers)) {
@@ -173,9 +267,18 @@ export function registerDispatcher(socket: Socket): () => void {
       }
     }
     (socket as Socket).off('connect', handleConnect);
-    (socket as Socket).off('disconnect', handleDisconnect as (...args: Array<unknown>) => void);
-    (socket as Socket).off('reconnect', handleReconnect as (...args: Array<unknown>) => void);
-    (socket as Socket).off('reconnect_failed', handleReconnectFailed as (...args: Array<unknown>) => void);
+    (socket as Socket).off(
+      'disconnect',
+      handleDisconnect as (...args: unknown[]) => void,
+    );
+    (socket as Socket).off(
+      'reconnect',
+      handleReconnect as (...args: unknown[]) => void,
+    );
+    (socket as Socket).off(
+      'reconnect_failed',
+      handleReconnectFailed as (...args: unknown[]) => void,
+    );
   };
 }
 

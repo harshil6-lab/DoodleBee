@@ -48,12 +48,68 @@ export async function createSession(): Promise<SessionResponse> {
   return api.post<SessionResponse>('/session');
 }
 
+// ------------------------------------------------------------ Phase 1 endpoints --
+
 /**
  * Fetch client settings defaults and bounds.
  * Used by create-room form to validate against server-authoritative bounds.
  */
 export async function getSettings(): Promise<SettingsResponse> {
   return api.get<SettingsResponse>('/settings');
+}
+
+/**
+ * Create a new room. Returns roomId, roomCode, and config.
+ * POST /rooms (`api-contract.md` §3.3).
+ */
+export interface RoomCreateRequest {
+  roomName: string;
+  maxPlayers: number;
+  rounds: number;
+  roundDuration: number;
+  hints: number;
+}
+
+export async function createRoom(
+  body: RoomCreateRequest,
+): Promise<import('../types').RoomCreateResponse> {
+  return api.post<import('../types').RoomCreateResponse>('/rooms', body);
+}
+
+/**
+ * Join an existing room by room code.
+ * POST /rooms/join (`api-contract.md` §3.4).
+ */
+export interface RoomJoinRequest {
+  roomCode: string;
+}
+
+export async function joinRoomByCode(
+  body: RoomJoinRequest,
+): Promise<import('../types').RoomJoinResponse> {
+  return api.post<import('../types').RoomJoinResponse>('/rooms/join', body);
+}
+
+/**
+ * Update room config (host only, while WAITING).
+ * PUT /rooms/:id/config (`api-contract.md` §3.5).
+ */
+export interface RoomConfigPatch {
+  roomName?: string;
+  maxPlayers?: number;
+  rounds?: number;
+  roundDuration?: number;
+  hints?: number;
+}
+
+export async function updateRoomConfig(
+  roomId: string,
+  patch: RoomConfigPatch,
+): Promise<{ config: import('../types').RoomConfig }> {
+  return api.put<{ config: import('../types').RoomConfig }>(
+    `/rooms/${encodeURIComponent(roomId)}/config`,
+    patch,
+  );
 }
 
 // ------------------------------------------------------------ Type guards -----

@@ -48,7 +48,7 @@ export function useSocketLifecycle(autoConnect = true): void {
     return () => {
       doDisconnect();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function doConnect(token: string): void {
@@ -88,8 +88,8 @@ export function useSocketLifecycle(autoConnect = true): void {
   }
 
   // Expose disconnect for external callers (leave-room, session expiry).
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (useSocketLifecycle as any)._doDisconnect = doDisconnect;
   });
 }

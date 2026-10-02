@@ -6,31 +6,20 @@
  * session exists. Shows create/join buttons when a session is present.
  * Connection status is read from the connection store for the banner.
  */
-import { useEffect } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { useSessionStore } from '@/stores/session.store';
 import { useConnectionStore } from '@/stores/connection.store';
 import { useSocketLifecycle } from '@/realtime/hooks';
 import { tokens } from '@/theme/tokens';
 
-/**
- * Root hook that wires up the Socket.IO lifecycle.
- * Placed here so the connection is established as soon as the app mounts.
- * The hook is idempotent — multiple mounts do not create duplicate sockets.
- */
-useSocketLifecycle(true);
-
 export default function IndexScreen() {
   const router = useRouter();
   const { playerId, nickname, roomId } = useSessionStore();
   const { status: connectionStatus } = useConnectionStore();
+
+  // Wire up Socket.IO lifecycle on mount. Idempotent — duplicates are no-ops.
+  useSocketLifecycle(true);
 
   // If no session exists, redirect to nickname entry.
   if (!playerId) {
@@ -50,8 +39,15 @@ export default function IndexScreen() {
     >
       {/* Connection banner — shown at top when not connected */}
       {connectionStatus !== 'connected' && (
-        <View style={[styles.banner, { backgroundColor: getBannerColor(connectionStatus) }]}>
-          <Text style={styles.bannerText}>{getConnectionMessage(connectionStatus)}</Text>
+        <View
+          style={[
+            styles.banner,
+            { backgroundColor: getBannerColor(connectionStatus) },
+          ]}
+        >
+          <Text style={styles.bannerText}>
+            {getConnectionMessage(connectionStatus)}
+          </Text>
         </View>
       )}
 
