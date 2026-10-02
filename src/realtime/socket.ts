@@ -179,19 +179,24 @@ export function on<Event extends ServerToClientEventName>(
  * Returns a cleanup function that removes all registered handlers.
  */
 export function onMany(
-  handlers: Partial<Record<ServerToClientEventName, (...args: Array<unknown>) => void>>,
+  handlers: Partial<
+    Record<ServerToClientEventName, (...args: unknown[]) => void>
+  >,
 ): () => void {
   const socket = getSocket();
   for (const [event, handler] of Object.entries(handlers)) {
     if (handler) {
-      (socket as Socket).on(event as string, handler as (...args: Array<unknown>) => void);
+      (socket as Socket).on(
+        event as string,
+        handler as (...args: unknown[]) => void,
+      );
     }
   }
   return () => {
     for (const event of Object.keys(handlers) as ServerToClientEventName[]) {
       const h = handlers[event];
       if (h) {
-        (socket as Socket).off(event, h as (...args: Array<unknown>) => void);
+        (socket as Socket).off(event, h as (...args: unknown[]) => void);
       }
     }
   };
@@ -207,11 +212,16 @@ export function onConnect(handler: () => void): () => void {
 }
 
 /** Listen for the Socket.IO-level `disconnect` event. */
-export function onDisconnect(handler: (reason: string, _description?: unknown) => void): () => void {
+export function onDisconnect(
+  handler: (reason: string, _description?: unknown) => void,
+): () => void {
   const socket = getSocket();
-  (socket as Socket).on('disconnect', handler as (...args: Array<unknown>) => void);
+  (socket as Socket).on('disconnect', handler as (...args: unknown[]) => void);
   return () => {
-    (socket as Socket).off('disconnect', handler as (...args: Array<unknown>) => void);
+    (socket as Socket).off(
+      'disconnect',
+      handler as (...args: unknown[]) => void,
+    );
   };
 }
 

@@ -1,14 +1,16 @@
 /**
- * Session store — Phase 0 tests.
+ * Session store — Phase 0 tests (reused from Phase 0).
  *
  * Verifies D04-017: sessionToken is persisted alongside reconnectInfo
  * and cleared on clearAll().
  */
-import { useSessionStore } from '../../src/stores/session.store';
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+);
+import { useSessionStore } from '../../../src/stores/session.store';
 
 describe('session store — sessionToken (D04-017)', () => {
   beforeEach(() => {
-    // Reset store to clean state between tests.
     useSessionStore.getState().clearAll();
   });
 
@@ -48,7 +50,6 @@ describe('session store — sessionToken (D04-017)', () => {
   it('clearAll() preserves nickname for re-entry', () => {
     useSessionStore.getState().setNickname('testuser');
     useSessionStore.getState().clearAll();
-    // clearAll resets everything including nickname per existing behavior
     expect(useSessionStore.getState().nickname).toBe('');
   });
 
