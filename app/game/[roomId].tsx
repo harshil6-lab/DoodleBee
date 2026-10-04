@@ -34,6 +34,7 @@ import {
 import { ClientToServerEvent, ServerToClientEvent } from '@/types';
 import type { Stroke, Point } from '@/types';
 import { env } from '@/config/env';
+import { probeT0 } from '@/utils/probe';
 
 // strokeSeq is a module-level counter for the drawer per round.
 const strokeSeqRef = { current: 0 };
@@ -202,7 +203,7 @@ export default function GameScreen() {
         useDrawerGameStore.getState().setHintsRemaining(p.hintsRemaining);
         useDrawerGameStore
           .getState()
-          .setTimer({ roundEndTime: p.timer.roundEndTime });
+          .setTimer({ roundEndTime: p.timer.roundEndTime, paused: false });
         useDrawerGameStore.getState().setRoundNumber(p.roundNumber);
       },
     );
@@ -326,12 +327,14 @@ export default function GameScreen() {
       const strokeId = crypto.randomUUID();
       currentStrokeIdRef.current = strokeId;
       currentStrokePointsRef.current = [];
+      const probe = probeT0();
       emitWithoutAck(ClientToServerEvent.DrawStart, {
         strokeId,
         strokeSeq: strokeSeqRef.current++,
         color: selectedColor,
         brushSize,
         points: [],
+        ...probe,
       });
       addStroke({
         id: strokeId,
@@ -346,10 +349,12 @@ export default function GameScreen() {
 
   const handleDrawMove = useCallback(
     (strokeId: string, _pointIndex: number, points: Point[]) => {
+      const probeMove = probeT0();
       emitWithoutAck(ClientToServerEvent.DrawMove, {
         strokeId,
         pointIndex: points.length - 1,
         points,
+        ...probeMove,
       });
       const lastPoint = points[points.length - 1];
       if (!lastPoint) return;

@@ -23,6 +23,7 @@ import { useRoomStore } from '../stores/room.store';
 import { useSessionStore } from '../stores/session.store';
 import type { ServerToClientEventName } from '../../shared/contract/events';
 import { logger } from '../utils/logger';
+import { probeT1 } from '../utils/probe';
 
 // ------------------------------------------------------------------ Version ---
 
@@ -349,6 +350,7 @@ export function registerDispatcher(socket: Socket): () => void {
         version: number;
       };
       if (p.version !== undefined && !shouldApply(p.version)) return;
+      probeT1('draw:start');
       const stroke: Stroke = {
         id: p.strokeId,
         points: p.points,
@@ -391,7 +393,8 @@ export function registerDispatcher(socket: Socket): () => void {
     'draw:end': (payload: unknown) => {
       const p = payload as { strokeId: string; version: number };
       if (p.version !== undefined && !shouldApply(p.version)) return;
-      logger.info({ event: 'draw-end', strokeId: p.strokeId });
+      probeT1('draw:end');
+      logger.info({ event: 'draw:end', strokeId: p.strokeId });
     },
 
     // ── canvas:cleared ───────────────────────────────────────────────

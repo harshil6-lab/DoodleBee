@@ -3,8 +3,11 @@
  *
  * Renders at the root layout level per D04-009.
  * Reads `useConnectionStore()` and shows appropriate message per status.
+ * Auto-dismisses the "reconnected" banner after 2s via an async timeout
+ * callback (never calls setState synchronously inside the effect body).
+ * Stays visible for disconnected/reconnecting/expired states.
  */
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { tokens } from '../theme/tokens';
 import { useConnectionStore } from '../stores/connection.store';
@@ -17,7 +20,44 @@ export function ConnectionBanner() {
   const status = useConnectionStore((s) => s.status);
   const lastError = useConnectionStore((s) => s.lastError);
 
-  if (status === 'connected' || status === 'reconnected') {
+  // Timer handle stored in a ref so it survives re-renders without
+  // requiring setState in the effect body.
+  const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    // Cancel any pending dismissal from a previous reconnected cycle.
+    if (dismissTimerRef.current) {
+      clearTimeout(dismissTimerRef.current);
+      dismissTimerRef.current = null;
+    }
+
+    if (status === 'reconnected') {
+      // Schedule dismissal via async callback only — never call setState
+      // synchronously inside this effect body.
+      dismissTimerRef.current = setTimeout(() => {
+        dismissTimerRef.current = null;
+        setDismissed(true);
+      }, 2000);
+    }
+    // For all other statuses (connected, disconnected, reconnecting, expired),
+    // the banner shows regardless of the dismissed flag; no state change needed.
+
+    return () => {
+      if (dismissTimerRef.current) {
+        clearTimeout(dismissTimerRef.current);
+        dismissTimerRef.current = null;
+      }
+    };
+  }, [status]);
+
+  // Hide the banner after the 2s auto-dismiss timer fires while reconnected.
+  if ((status === 'connected' || status === 'reconnected') && dismissed) {
+    return null;
+  }
+
+  // Hidden when fully connected with no issue.
+  if (status === 'connected') {
     return null;
   }
 
@@ -29,6 +69,8 @@ export function ConnectionBanner() {
         return 'Finding your friends...';
       case 'expired':
         return 'Session expired. Please re-enter your nickname.';
+      case 'reconnected':
+        return 'Welcome back!';
       default:
         return '';
     }
