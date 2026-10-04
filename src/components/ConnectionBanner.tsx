@@ -1,14 +1,18 @@
 /**
- * ConnectionBanner — cross-cutting overlay for connection state.
+ * ConnectionBanner - cross-cutting overlay for connection state.
  *
  * Renders at the root layout level per D04-009.
  * Reads `useConnectionStore()` and shows appropriate message per status.
  * Auto-dismisses the "reconnected" banner after 2s via an async timeout
  * callback (never calls setState synchronously inside the effect body).
  * Stays visible for disconnected/reconnecting/expired states.
+ *
+ * Phase 5 restyled this banner into the approved comic language. The
+ * lifecycle logic below is unchanged.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
+import { ComicSurface } from './ui/ComicSurface';
 import { tokens } from '../theme/tokens';
 import { useConnectionStore } from '../stores/connection.store';
 import { connectSocket } from '../realtime/socket';
@@ -33,7 +37,7 @@ export function ConnectionBanner() {
     }
 
     if (status === 'reconnected') {
-      // Schedule dismissal via async callback only — never call setState
+      // Schedule dismissal via async callback only - never call setState
       // synchronously inside this effect body.
       dismissTimerRef.current = setTimeout(() => {
         dismissTimerRef.current = null;
@@ -90,8 +94,16 @@ export function ConnectionBanner() {
     >
       <Text style={styles.bannerText}>{getMessage()}</Text>
       {status === 'disconnected' ? (
-        <Pressable onPress={handleRetry} style={styles.retryButton}>
-          <Text style={styles.retryText}>Retry</Text>
+        <Pressable onPress={handleRetry} style={styles.retrySlot}>
+          <ComicSurface
+            variant="sticker"
+            radius={tokens.radius.sm}
+            backgroundColor={tokens.colors.beeYellow}
+            offset={2}
+            contentStyle={styles.retryFace}
+          >
+            <Text style={styles.retryText}>RETRY</Text>
+          </ComicSurface>
         </Pressable>
       ) : null}
     </View>
@@ -103,11 +115,25 @@ export function ConnectionBanner() {
 function getBannerStyle(status: string): object {
   switch (status) {
     case 'disconnected':
-      return { backgroundColor: tokens.colors.danger };
+      return {
+        backgroundColor: tokens.colors.hotPink,
+        borderBottomColor: tokens.colors.ink,
+      };
     case 'reconnecting':
-      return { backgroundColor: tokens.colors.warning };
+      return {
+        backgroundColor: tokens.colors.beeYellow,
+        borderBottomColor: tokens.colors.ink,
+      };
     case 'expired':
-      return { backgroundColor: tokens.colors.danger };
+      return {
+        backgroundColor: tokens.colors.hotPink,
+        borderBottomColor: tokens.colors.ink,
+      };
+    case 'reconnected':
+      return {
+        backgroundColor: tokens.colors.mint,
+        borderBottomColor: tokens.colors.ink,
+      };
     default:
       return {};
   }
@@ -122,29 +148,31 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: tokens.zIndex.connectionBanner,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    borderBottomWidth: tokens.border.comic,
+    paddingVertical: 12,
+    paddingHorizontal: tokens.spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    gap: tokens.spacing.sm,
   },
   bannerText: {
     flex: 1,
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: tokens.colors.textInverse,
+    ...tokens.typography.bodyBold,
+    color: tokens.colors.ink,
     textAlign: 'center',
   },
-  retryButton: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 12,
+  retrySlot: {
+    minWidth: 92,
+  },
+  retryFace: {
     paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: tokens.spacing.md,
+    alignItems: 'center',
   },
   retryText: {
-    fontSize: 14,
-    fontWeight: '700' as const,
-    color: tokens.colors.textInverse,
+    ...tokens.typography.button,
+    fontSize: 15,
+    color: tokens.colors.ink,
   },
 });

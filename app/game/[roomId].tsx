@@ -15,6 +15,7 @@ import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { DrawingCanvas } from '@/components/DrawingCanvas';
 import { DrawingToolbar } from '@/components/DrawingToolbar';
 import { GameHeader } from '@/components/GameHeader';
+import { PaperBackground } from '@/components/ui/PaperBackground';
 import { GuesserPanel } from '@/components/GuesserPanel';
 import { ChatPanel } from '@/components/ChatPanel';
 import { tokens } from '@/theme/tokens';
@@ -392,8 +393,10 @@ export default function GameScreen() {
   // ── Render ─────────────────────────────────────────────────────────────
   return (
     <View style={styles.container} testID="game-screen">
+      <PaperBackground />
+
       {/* Game header */}
-      <GameHeader />
+      <GameHeader isDrawer={isDrawer} />
 
       {/* Main area: canvas + side panel */}
       <ScrollView
@@ -452,11 +455,12 @@ const styles = StyleSheet.create({
   },
   leaveRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: tokens.spacing.md,
     paddingVertical: tokens.spacing.sm,
-    backgroundColor: tokens.colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: tokens.colors.borderLight,
+    backgroundColor: tokens.colors.cream,
+    borderTopWidth: tokens.border.comic,
+    borderTopColor: tokens.colors.ink,
   },
   spacer: { flex: 1 },
 });

@@ -2,16 +2,21 @@
  * Route: /round-result/[roomId]
  *
  * Displays the result of a completed round: word reveal, rankings,
- * end reason, drawer bonus/points. Driven by `game.roundResult` store state.
+ * end reason, drawer bonus/points. Driven by the round-result store state.
  *
- * Navigation: `round:started` event → back to `/game/:roomId`.
- *             Manual "Continue" tap → same.
+ * Navigation: `round:started` event -> back to `/game/:roomId`.
+ *             Manual "Next round" tap -> same.
+ *
+ * Visual reference: Figma Make "DoodleBee" `round-results`.
  */
 import { useEffect } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
-import { tokens } from '@/theme/tokens';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { tokens } from '@/theme';
 import { Button } from '@/components/Button';
+import { PaperBackground } from '@/components/ui/PaperBackground';
+import { ComicSurface } from '@/components/ui/ComicSurface';
 import { useDrawerGameStore } from '@/stores/drawer.store';
 import { useRoomStore } from '@/stores/room.store';
 import { useConnectionStore } from '@/stores/connection.store';
@@ -36,14 +41,31 @@ function getEndReasonLabel(reason: string): string {
   }
 }
 
+function rankMedal(rank: number): string {
+  if (rank === 1) return '🥇';
+  if (rank === 2) return '🥈';
+  if (rank === 3) return '🥉';
+  return `${rank}`;
+}
+
+function ordinal(n: number): string {
+  if (n === 1) return '1st';
+  if (n === 2) return '2nd';
+  if (n === 3) return '3rd';
+  return `${n}th`;
+}
+
 // ---------------------------------------------------------------- Component --
 
 export default function RoundResultScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { roomId } = useLocalSearchParams<{ roomId?: string }>();
   const roundResult = useDrawerGameStore((s) => s.roundResult);
   const roundNumber = useDrawerGameStore((s) => s.roundNumber);
+  const roundsPlanned = useDrawerGameStore((s) => s.roundsPlanned);
   const phase = useDrawerGameStore((s) => s.phase);
+  const drawer = useDrawerGameStore((s) => s.drawer);
   const nextDrawerPlayerId = useDrawerGameStore((s) => s.nextDrawerPlayerId);
   const connectionStatus = useConnectionStore((s) => s.status);
   const players = useRoomStore((s) => s.players);
@@ -69,9 +91,9 @@ export default function RoundResultScreen() {
   if (!roundResult) {
     return (
       <View style={styles.centered}>
-        <View style={styles.loadingCard}>
-          <Text style={styles.loadingText}>Loading results...</Text>
-        </View>
+        <ComicSurface contentStyle={styles.loadingCard}>
+          <Text style={styles.loadingText}>Loading results…</Text>
+        </ComicSurface>
       </View>
     );
   }
@@ -80,9 +102,9 @@ export default function RoundResultScreen() {
   if (phase !== 'ROUND_FINISHED' && phase !== 'NEXT_ROUND') {
     return (
       <View style={styles.centered}>
-        <View style={styles.loadingCard}>
-          <Text style={styles.loadingText}>Entering results...</Text>
-        </View>
+        <ComicSurface contentStyle={styles.loadingCard}>
+          <Text style={styles.loadingText}>Entering results…</Text>
+        </ComicSurface>
       </View>
     );
   }
@@ -91,127 +113,176 @@ export default function RoundResultScreen() {
     router.replace(`/game/${roomId}`);
   };
 
-  return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      testID="round-result-screen"
-    >
-      {/* Connection banner */}
-      {connectionStatus !== 'connected' &&
-      connectionStatus !== 'reconnected' ? (
-        <View style={[styles.banner, styles.bannerWarning]}>
-          <Text style={styles.bannerText}>Reconnecting...</Text>
-        </View>
-      ) : null}
+  const showConnectionBanner =
+    connectionStatus !== 'connected' && connectionStatus !== 'reconnected';
 
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Round {roundNumber} Complete</Text>
+  return (
+    <View style={styles.root}>
+      <PaperBackground />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + tokens.spacing.sm },
+        ]}
+        testID="round-result-screen"
+      >
+        {showConnectionBanner ? (
+          <View style={styles.banner}>
+            <Text style={styles.bannerText}>Reconnecting…</Text>
+          </View>
+        ) : null}
+
+        <Text style={styles.roundLabel}>
+          ROUND {roundNumber} / {roundsPlanned}
+        </Text>
+
+        <Text style={styles.hero}>ROUND{'\n'}OVER! 🎉</Text>
         <Text style={styles.endReason}>
           {getEndReasonLabel(roundResult.endReason)}
         </Text>
-      </View>
 
-      {/* Word reveal */}
-      <View style={styles.wordSection}>
-        <Text style={styles.wordLabel}>The word was</Text>
-        <Text style={styles.wordReveal} testID="word-reveal">
-          {roundResult.word.toUpperCase()}
-        </Text>
-      </View>
+        {/* Word reveal */}
+        <ComicSurface
+          variant="sticker"
+          radius={tokens.radius.lg}
+          backgroundColor={tokens.colors.beeYellow}
+          style={styles.wordCard}
+          contentStyle={styles.wordCardInner}
+        >
+          <Text style={styles.wordLabel}>The word was</Text>
+          <Text style={styles.wordReveal} testID="word-reveal">
+            {roundResult.word.toUpperCase()}
+          </Text>
+        </ComicSurface>
 
-      {/* Rankings */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Rankings</Text>
-        {roundResult.rankings.map((entry) => (
-          <View
-            key={entry.playerId}
-            style={[
-              styles.rankRow,
-              entry.rank === 1 && styles.rankFirst,
-              entry.rank === 2 && styles.rankSecond,
-              entry.rank === 3 && styles.rankThird,
-            ]}
-            testID={`rank-${entry.rank}`}
-          >
-            <Text style={styles.rankBadge}>{entry.rank}</Text>
-            <Text style={styles.rankName} numberOfLines={1}>
-              {entry.nickname}
-            </Text>
-            <Text style={styles.rankPoints}>+{entry.points}</Text>
-          </View>
-        ))}
-      </View>
-
-      {/* Drawer bonus */}
-      <View style={styles.bonusSection}>
-        <Text style={styles.bonusText}>
-          Drawer bonus:{' '}
-          <Text style={styles.bonusValue}>+{roundResult.drawerBonus}</Text>
-        </Text>
-        <Text style={styles.bonusSubtext}>
-          Drawer points this round: {roundResult.drawerPoints}
-        </Text>
-      </View>
-
-      {/* Next round info */}
-      {phase === 'NEXT_ROUND' ? (
-        <View style={styles.nextRoundSection}>
-          <Text style={styles.nextRoundLabel}>Next round starting soon...</Text>
-          <View style={styles.nextDrawerCard} testID="next-drawer-card">
-            <Text style={styles.nextDrawerLabel}>Next drawer</Text>
-            <Text style={styles.nextDrawerName} testID="next-drawer-name">
-              {nextDrawerPlayerId
-                ? (players.find((p) => p.playerId === nextDrawerPlayerId)
-                    ?.nickname ?? '—')
-                : '—'}
-            </Text>
-          </View>
+        {/* Rankings */}
+        <Text style={styles.sectionTitle}>Round Rankings</Text>
+        <View style={styles.rankings}>
+          {roundResult.rankings.map((entry) => {
+            const isDrawer = entry.playerId === drawer;
+            const label = isDrawer
+              ? 'Drawer'
+              : entry.points === 0
+                ? 'No guess'
+                : `${ordinal(entry.rank)} Guess`;
+            const isFirst = entry.rank === 1;
+            return (
+              <ComicSurface
+                key={entry.playerId}
+                variant="sticker"
+                radius={tokens.radius.md}
+                backgroundColor={
+                  isFirst ? tokens.colors.beeYellow : tokens.colors.white
+                }
+                style={styles.rankRow}
+                contentStyle={styles.rankInner}
+                testID={`rank-${entry.rank}`}
+              >
+                <Text style={styles.rankMedal}>
+                  {isDrawer ? '✏️' : rankMedal(entry.rank)}
+                </Text>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>
+                    {entry.nickname.slice(0, 2).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.rankCopy}>
+                  <Text style={styles.rankName} numberOfLines={1}>
+                    {entry.nickname}
+                  </Text>
+                  <Text style={styles.rankSub} numberOfLines={1}>
+                    {label}
+                  </Text>
+                </View>
+                <Text style={styles.rankPoints}>
+                  {entry.points > 0 ? `+${entry.points}` : '—'}
+                </Text>
+              </ComicSurface>
+            );
+          })}
         </View>
-      ) : null}
 
-      {/* Continue button */}
-      <View style={styles.actions}>
+        {/* Drawer bonus */}
+        <ComicSurface
+          variant="sticker"
+          radius={tokens.radius.md}
+          backgroundColor={tokens.colors.white}
+          contentStyle={styles.bonusInner}
+        >
+          <Text style={styles.bonusText}>
+            Drawer bonus:{' '}
+            <Text style={styles.bonusValue}>+{roundResult.drawerBonus}</Text>
+          </Text>
+          <Text style={styles.bonusSubtext}>
+            Drawer points this round: {roundResult.drawerPoints}
+          </Text>
+        </ComicSurface>
+
+        {/* Next round info */}
+        {phase === 'NEXT_ROUND' ? (
+          <View style={styles.nextRoundSection}>
+            <Text style={styles.nextRoundLabel}>Next round starting soon…</Text>
+            <ComicSurface
+              variant="sticker"
+              radius={tokens.radius.md}
+              backgroundColor={tokens.colors.lavender}
+              contentStyle={styles.bonusInner}
+              testID="next-drawer-card"
+            >
+              <Text style={styles.nextDrawerLabel}>Next drawer</Text>
+              <Text style={styles.nextDrawerName} testID="next-drawer-name">
+                {nextDrawerPlayerId
+                  ? (players.find((p) => p.playerId === nextDrawerPlayerId)
+                      ?.nickname ?? '—')
+                  : '—'}
+              </Text>
+            </ComicSurface>
+          </View>
+        ) : null}
+
+        {/* Continue button */}
         <Button
-          label="Continue"
+          label="🚀 NEXT ROUND"
           onPress={handleContinue}
           variant="primary"
+          fullWidth
           testID="continue-button"
         />
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 // ---------------------------------------------------------------- Styles ---
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: tokens.colors.background,
+    backgroundColor: tokens.colors.cream,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
-    paddingHorizontal: tokens.spacing.xl,
-    paddingTop: tokens.spacing.xxxl,
-    paddingBottom: tokens.spacing.xxxl,
-    gap: tokens.spacing.lg,
-    alignItems: 'center',
+    paddingHorizontal: tokens.spacing.lg,
+    paddingBottom: tokens.spacing.xxl,
+    gap: tokens.spacing.md,
   },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: tokens.colors.background,
+    backgroundColor: tokens.colors.cream,
+    paddingHorizontal: tokens.spacing.lg,
   },
   loadingCard: {
-    backgroundColor: tokens.colors.surface,
-    borderRadius: tokens.radius.md,
     paddingVertical: tokens.spacing.xl,
     paddingHorizontal: tokens.spacing.xxl,
     alignItems: 'center',
   },
   loadingText: {
+    fontFamily: tokens.typography.body.fontFamily,
     fontSize: tokens.typography.body.fontSize,
     color: tokens.colors.textSecondary,
   },
@@ -220,163 +291,147 @@ const styles = StyleSheet.create({
     paddingVertical: tokens.spacing.sm,
     paddingHorizontal: tokens.spacing.md,
     borderRadius: tokens.radius.md,
-    marginBottom: tokens.spacing.md,
+    backgroundColor: tokens.colors.tangerine,
     alignItems: 'center',
-  },
-  bannerWarning: {
-    backgroundColor: tokens.colors.warning,
   },
   bannerText: {
+    fontFamily: tokens.typography.bodyBold.fontFamily,
     fontSize: tokens.typography.caption.fontSize,
-    fontWeight: '600' as const,
-    color: tokens.colors.textInverse,
+    color: tokens.colors.white,
   },
-  header: {
-    alignItems: 'center',
-    gap: tokens.spacing.xs,
+  roundLabel: {
+    fontFamily: tokens.typography.label.fontFamily,
+    fontSize: tokens.typography.label.fontSize,
+    letterSpacing: 1.2,
+    color: tokens.colors.textMuted,
   },
-  title: {
+  hero: {
+    fontFamily: tokens.typography.display.fontFamily,
     fontSize: tokens.typography.display.fontSize,
-    fontWeight: tokens.typography.display.fontWeight,
-    color: tokens.colors.textPrimary,
-    textAlign: 'center',
+    lineHeight: tokens.typography.display.lineHeight,
+    letterSpacing: tokens.typography.display.letterSpacing,
+    color: tokens.colors.ink,
   },
   endReason: {
-    fontSize: tokens.typography.body.fontSize,
-    color: tokens.colors.textSecondary,
-    fontStyle: 'italic',
-  },
-  wordSection: {
-    alignItems: 'center',
-    backgroundColor: tokens.colors.surface,
-    borderRadius: tokens.radius.lg,
-    paddingVertical: tokens.spacing.xl,
-    paddingHorizontal: tokens.spacing.xxl,
-    gap: tokens.spacing.sm,
-  },
-  wordLabel: {
-    fontSize: tokens.typography.caption.fontSize,
-    color: tokens.colors.textMuted,
-    textTransform: 'uppercase' as const,
-    letterSpacing: 1,
-  },
-  wordReveal: {
-    fontSize: 36,
-    fontWeight: '800' as const,
-    color: tokens.colors.primary,
-    letterSpacing: 4,
-    textAlign: 'center',
-  },
-  section: {
-    width: '100%',
-    backgroundColor: tokens.colors.surface,
-    borderRadius: tokens.radius.md,
-    padding: tokens.spacing.md,
-    gap: tokens.spacing.sm,
-  },
-  sectionTitle: {
-    fontSize: tokens.typography.caption.fontSize,
-    fontWeight: '700' as const,
-    color: tokens.colors.textSecondary,
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.5,
-    marginBottom: tokens.spacing.xs,
-  },
-  rankRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: tokens.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: tokens.colors.borderLight,
-    gap: tokens.spacing.sm,
-  },
-  rankBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: tokens.colors.background,
-    borderWidth: 1,
-    borderColor: tokens.colors.borderLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: tokens.typography.body.fontSize,
-    fontWeight: '700' as const,
-    color: tokens.colors.textPrimary,
-  },
-  rankFirst: {
-    backgroundColor: `${tokens.colors.accentYellow}22`,
-    borderColor: tokens.colors.accentYellow,
-  },
-  rankSecond: {
-    backgroundColor: `${tokens.colors.textMuted}11`,
-    borderColor: tokens.colors.textMuted,
-  },
-  rankThird: {
-    backgroundColor: `${tokens.colors.secondary}11`,
-    borderColor: tokens.colors.secondary,
-  },
-  rankName: {
-    flex: 1,
-    fontSize: tokens.typography.body.fontSize,
-    color: tokens.colors.textPrimary,
-    fontWeight: '600' as const,
-  },
-  rankPoints: {
-    fontSize: tokens.typography.body.fontSize,
-    color: tokens.colors.accentMint,
-    fontWeight: '700' as const,
-  },
-  bonusSection: {
-    alignItems: 'center',
-    gap: tokens.spacing.xs,
-  },
-  bonusText: {
+    fontFamily: tokens.typography.body.fontFamily,
     fontSize: tokens.typography.body.fontSize,
     color: tokens.colors.textSecondary,
   },
-  bonusValue: {
-    fontWeight: '700' as const,
-    color: tokens.colors.accentYellow,
-  },
-  bonusSubtext: {
-    fontSize: tokens.typography.caption.fontSize,
-    color: tokens.colors.textMuted,
-  },
-  nextRoundSection: {
-    alignItems: 'center',
-    paddingVertical: tokens.spacing.md,
-  },
-  nextRoundLabel: {
-    fontSize: tokens.typography.heading.fontSize,
-    fontWeight: '700' as const,
-    color: tokens.colors.primary,
-  },
-  nextRoundHint: {
-    fontSize: tokens.typography.caption.fontSize,
-    color: tokens.colors.textMuted,
-  },
-  nextDrawerCard: {
-    alignItems: 'center',
-    backgroundColor: tokens.colors.surface,
-    borderRadius: tokens.radius.md,
-    paddingVertical: tokens.spacing.md,
-    paddingHorizontal: tokens.spacing.xl,
+  wordCard: {
     marginTop: tokens.spacing.sm,
   },
-  nextDrawerLabel: {
+  wordCardInner: {
+    alignItems: 'center',
+    paddingVertical: tokens.spacing.lg,
+    paddingHorizontal: tokens.spacing.md,
+  },
+  wordLabel: {
+    fontFamily: tokens.typography.label.fontFamily,
+    fontSize: tokens.typography.label.fontSize,
+    letterSpacing: 1.2,
+    color: tokens.colors.ink,
+  },
+  wordReveal: {
+    marginTop: tokens.spacing.xs,
+    fontFamily: tokens.typography.display.fontFamily,
+    fontSize: tokens.typography.display.fontSize,
+    lineHeight: tokens.typography.display.lineHeight,
+    color: tokens.colors.ink,
+    textAlign: 'center',
+  },
+  sectionTitle: {
+    marginTop: tokens.spacing.sm,
+    fontFamily: tokens.typography.bodyBold.fontFamily,
+    fontSize: tokens.typography.bodyBold.fontSize,
+    color: tokens.colors.ink,
+  },
+  rankings: {
+    gap: tokens.spacing.sm,
+  },
+  rankRow: {
+    width: '100%',
+  },
+  rankInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: tokens.spacing.sm,
+    paddingVertical: tokens.spacing.sm,
+    paddingHorizontal: tokens.spacing.sm,
+  },
+  rankMedal: {
+    width: 26,
+    fontSize: 18,
+    textAlign: 'center',
+    color: tokens.colors.ink,
+    fontFamily: tokens.typography.bodyBold.fontFamily,
+  },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: tokens.radius.full,
+    backgroundColor: tokens.colors.purple,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontFamily: tokens.typography.label.fontFamily,
+    fontSize: tokens.typography.label.fontSize,
+    letterSpacing: 0.6,
+    color: tokens.colors.cream,
+  },
+  rankCopy: {
+    flex: 1,
+  },
+  rankName: {
+    fontFamily: tokens.typography.bodyBold.fontFamily,
+    fontSize: tokens.typography.bodyBold.fontSize,
+    color: tokens.colors.ink,
+  },
+  rankSub: {
+    fontFamily: tokens.typography.caption.fontFamily,
     fontSize: tokens.typography.caption.fontSize,
+    color: tokens.colors.textSecondary,
+  },
+  rankPoints: {
+    fontFamily: tokens.typography.subheading.fontFamily,
+    fontSize: tokens.typography.subheading.fontSize,
+    color: tokens.colors.ink,
+  },
+  bonusInner: {
+    paddingVertical: tokens.spacing.md,
+    paddingHorizontal: tokens.spacing.md,
+    gap: tokens.spacing.xxs,
+  },
+  bonusText: {
+    fontFamily: tokens.typography.bodyBold.fontFamily,
+    fontSize: tokens.typography.bodyBold.fontSize,
+    color: tokens.colors.ink,
+  },
+  bonusValue: {
+    color: tokens.colors.mint,
+  },
+  bonusSubtext: {
+    fontFamily: tokens.typography.caption.fontFamily,
+    fontSize: tokens.typography.caption.fontSize,
+    color: tokens.colors.textSecondary,
+  },
+  nextRoundSection: {
+    gap: tokens.spacing.sm,
+  },
+  nextRoundLabel: {
+    fontFamily: tokens.typography.bodyBold.fontFamily,
+    fontSize: tokens.typography.bodyBold.fontSize,
+    color: tokens.colors.ink,
+  },
+  nextDrawerLabel: {
+    fontFamily: tokens.typography.label.fontFamily,
+    fontSize: tokens.typography.label.fontSize,
+    letterSpacing: 1.2,
     color: tokens.colors.textMuted,
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.5,
-    marginBottom: tokens.spacing.xs,
   },
   nextDrawerName: {
-    fontSize: tokens.typography.body.fontSize,
-    fontWeight: '700' as const,
-    color: tokens.colors.secondary,
-  },
-  actions: {
-    width: '100%',
-    marginTop: tokens.spacing.md,
+    fontFamily: tokens.typography.subheading.fontFamily,
+    fontSize: tokens.typography.subheading.fontSize,
+    color: tokens.colors.purple,
   },
 });
