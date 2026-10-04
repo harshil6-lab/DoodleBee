@@ -6,12 +6,16 @@
  *
  * No realtime events — pure passive display after game:finished.
  */
+import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { tokens } from '@/theme/tokens';
 import { Button } from '@/components/Button';
 import { useDrawerGameStore } from '@/stores/drawer.store';
 import { useSessionStore } from '@/stores/session.store';
+import { useRoomStore } from '@/stores/room.store';
+import { emitWithoutAck, on } from '@/realtime/socket';
+import { ServerToClientEvent, ClientToServerEvent } from '@/types';
 
 // ---------------------------------------------------------------- Component --
 
@@ -21,6 +25,19 @@ export default function FinalResultScreen() {
   const playerId = useSessionStore((s) => s.playerId);
   const finalResult = useDrawerGameStore((s) => s.finalResult);
   const phase = useDrawerGameStore((s) => s.phase);
+
+  // All hooks before any early return.
+  const host = useRoomStore((s) => s.host);
+  const isHost = playerId !== null && host === playerId;
+
+  // Subscribe to game:started for auto-navigation back to game.
+  React.useEffect(() => {
+    const unsub = on(ServerToClientEvent.GameStarted, () => {
+      router.replace('/game/' + roomId);
+    });
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId]);
 
   // Guard: no roomId.
   if (!roomId) {
@@ -114,6 +131,16 @@ export default function FinalResultScreen() {
 
       {/* Actions */}
       <View style={styles.actions}>
+        {isHost ? (
+          <Button
+            label="Play Again"
+            onPress={() => {
+              emitWithoutAck(ClientToServerEvent.StartGame, {});
+            }}
+            variant="secondary"
+            testID="play-again-button"
+          />
+        ) : null}
         <Button
           label="Return Home"
           onPress={handleReturnHome}
