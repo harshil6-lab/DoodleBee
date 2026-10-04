@@ -265,11 +265,25 @@ export function registerDispatcher(socket: Socket): () => void {
 
     // ── game:started ─────────────────────────────────────────────────
     'game:started': (payload: unknown) => {
-      const p = payload as { version: number };
+      const p = payload as {
+        gameId: string;
+        roundNumber: number;
+        roundsPlanned: number;
+        startingDeadline: number;
+        serverNow: number;
+        players: Array<{
+          playerId: string;
+          nickname: string;
+          isConnected: boolean;
+        }>;
+        version: number;
+      };
       if (p.version !== undefined && !shouldApply(p.version)) return;
       useDrawerGameStore.getState().setPhase('STARTING');
+      useDrawerGameStore.getState().setRoundsPlanned(p.roundsPlanned);
       useGuesserGameStore.getState().setPhase('STARTING');
-      logger.info({ event: 'game-started' });
+      useGuesserGameStore.getState().setRoundsPlanned(p.roundsPlanned);
+      logger.info({ event: 'game-started', roundsPlanned: p.roundsPlanned });
     },
 
     // ── round:started ────────────────────────────────────────────────
@@ -279,7 +293,7 @@ export function registerDispatcher(socket: Socket): () => void {
         drawerPlayerId: string;
         maskedWord: string;
         hintsRemaining: number;
-        timer: { roundEndTime: number };
+        timer: { roundEndTime: number; paused: boolean };
         version: number;
       };
       if (p.version !== undefined && !shouldApply(p.version)) return;
@@ -298,6 +312,8 @@ export function registerDispatcher(socket: Socket): () => void {
       useGuesserGameStore.getState().setRoundNumber(p.roundNumber);
       // Clear previous round result when a new round starts.
       useDrawerGameStore.getState().setRoundResult(null);
+      useDrawerGameStore.getState().setNextDrawer(null);
+      useGuesserGameStore.getState().setNextDrawer(null);
       logger.info({
         event: 'round-started',
         roundNumber: p.roundNumber,
@@ -578,6 +594,7 @@ export function registerDispatcher(socket: Socket): () => void {
           hintsRemaining: number;
           timer: { roundEndTime: number | null; paused: boolean };
           secretWord?: string;
+          nextDrawerPlayerId?: string;
         };
         strokes: SnapshotStroke[];
         scores: Record<string, number>;
@@ -597,6 +614,13 @@ export function registerDispatcher(socket: Socket): () => void {
         useDrawerGameStore.getState().setRoundNumber(p.game.roundNumber);
         useDrawerGameStore.getState().setRoundsPlanned(p.game.roundsPlanned);
         useDrawerGameStore.getState().setScores(p.scores);
+        if (p.round.nextDrawerPlayerId) {
+          useDrawerGameStore
+            .getState()
+            .setNextDrawer(p.round.nextDrawerPlayerId);
+        } else {
+          useDrawerGameStore.getState().setNextDrawer(null);
+        }
         if (p.round.secretWord) {
           useDrawerGameStore.getState().setSecretWord(p.round.secretWord);
         }
@@ -625,6 +649,13 @@ export function registerDispatcher(socket: Socket): () => void {
         useGuesserGameStore.getState().setRoundNumber(p.game.roundNumber);
         useGuesserGameStore.getState().setRoundsPlanned(p.game.roundsPlanned);
         useGuesserGameStore.getState().setScores(p.scores);
+        if (p.round.nextDrawerPlayerId) {
+          useGuesserGameStore
+            .getState()
+            .setNextDrawer(p.round.nextDrawerPlayerId);
+        } else {
+          useGuesserGameStore.getState().setNextDrawer(null);
+        }
         logger.info({
           event: 'snapshot-restored-guesser',
           phase,

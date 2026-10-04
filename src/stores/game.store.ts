@@ -14,24 +14,24 @@ export interface RoundResult {
   roundNumber: number;
   endReason: RoundEndReason;
   word: string;
-  rankings: Array<{
+  rankings: {
     playerId: string;
     nickname: string;
     rank: number;
     points: number;
-  }>;
+  }[];
   drawerBonus: number;
   drawerPoints: number;
 }
 
 export interface FinalResult {
   finalScores: Record<string, number>;
-  rankings: Array<{
+  rankings: {
     playerId: string;
     nickname: string;
     rank: number;
     score: number;
-  }>;
+  }[];
   winnerId: string;
 }
 
@@ -52,6 +52,8 @@ export interface GameBaseState {
   roundResult: RoundResult | null;
   /** Result of the completed game (populated by game:finished). */
   finalResult: FinalResult | null;
+  /** PlayerId of the drawer for the upcoming round (NEXT_ROUND phase only). */
+  nextDrawerPlayerId: string | null;
 }
 
 export interface GameBaseActions {
@@ -65,6 +67,7 @@ export interface GameBaseActions {
   setRoundsPlanned: (n: number) => void;
   setRoundResult: (result: RoundResult | null) => void;
   setFinalResult: (result: FinalResult | null) => void;
+  setNextDrawer: (playerId: string | null) => void;
   addScore: (playerId: string, points: number) => void;
   resetForRound: () => void;
 }
@@ -88,11 +91,12 @@ export const createGameBaseSlice = <TState extends GameBaseState>(
   maskedWord: '',
   scores: {},
   hintsRemaining: 0,
-  timer: { roundEndTime: null },
+  timer: { roundEndTime: null, paused: false },
   roundNumber: 1,
   roundsPlanned: 3,
   roundResult: null,
   finalResult: null,
+  nextDrawerPlayerId: null,
 
   setPhase: (phase) => set({ phase } as Partial<TState>),
   setDrawer: (drawer) => set({ drawer } as Partial<TState>),
@@ -106,6 +110,8 @@ export const createGameBaseSlice = <TState extends GameBaseState>(
     set({ roundsPlanned } as Partial<TState>),
   setRoundResult: (roundResult) => set({ roundResult } as Partial<TState>),
   setFinalResult: (finalResult) => set({ finalResult } as Partial<TState>),
+  setNextDrawer: (nextDrawerPlayerId) =>
+    set({ nextDrawerPlayerId } as Partial<TState>),
   addScore: (playerId, points) =>
     set(
       (state) =>
@@ -120,7 +126,7 @@ export const createGameBaseSlice = <TState extends GameBaseState>(
     set({
       maskedWord: '',
       hintsRemaining: 0,
-      timer: { roundEndTime: null },
+      timer: { roundEndTime: null, paused: false },
     } as Partial<TState>),
 });
 

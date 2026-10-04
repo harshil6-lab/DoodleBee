@@ -13,6 +13,7 @@ import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { tokens } from '@/theme/tokens';
 import { Button } from '@/components/Button';
 import { useDrawerGameStore } from '@/stores/drawer.store';
+import { useRoomStore } from '@/stores/room.store';
 import { useConnectionStore } from '@/stores/connection.store';
 import { on } from '@/realtime/socket';
 import { ServerToClientEvent } from '@/types';
@@ -43,7 +44,9 @@ export default function RoundResultScreen() {
   const roundResult = useDrawerGameStore((s) => s.roundResult);
   const roundNumber = useDrawerGameStore((s) => s.roundNumber);
   const phase = useDrawerGameStore((s) => s.phase);
+  const nextDrawerPlayerId = useDrawerGameStore((s) => s.nextDrawerPlayerId);
   const connectionStatus = useConnectionStore((s) => s.status);
+  const players = useRoomStore((s) => s.players);
 
   // Subscribe to round:started for auto-navigation back to game.
   useEffect(() => {
@@ -156,7 +159,15 @@ export default function RoundResultScreen() {
       {phase === 'NEXT_ROUND' ? (
         <View style={styles.nextRoundSection}>
           <Text style={styles.nextRoundLabel}>Next round starting soon...</Text>
-          <Text style={styles.nextRoundHint}>Get ready to draw!</Text>
+          <View style={styles.nextDrawerCard} testID="next-drawer-card">
+            <Text style={styles.nextDrawerLabel}>Next drawer</Text>
+            <Text style={styles.nextDrawerName} testID="next-drawer-name">
+              {nextDrawerPlayerId
+                ? (players.find((p) => p.playerId === nextDrawerPlayerId)
+                    ?.nickname ?? '—')
+                : '—'}
+            </Text>
+          </View>
         </View>
       ) : null}
 
@@ -343,7 +354,26 @@ const styles = StyleSheet.create({
   nextRoundHint: {
     fontSize: tokens.typography.caption.fontSize,
     color: tokens.colors.textMuted,
-    marginTop: tokens.spacing.xs,
+  },
+  nextDrawerCard: {
+    alignItems: 'center',
+    backgroundColor: tokens.colors.surface,
+    borderRadius: tokens.radius.md,
+    paddingVertical: tokens.spacing.md,
+    paddingHorizontal: tokens.spacing.xl,
+    marginTop: tokens.spacing.sm,
+  },
+  nextDrawerLabel: {
+    fontSize: tokens.typography.caption.fontSize,
+    color: tokens.colors.textMuted,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+    marginBottom: tokens.spacing.xs,
+  },
+  nextDrawerName: {
+    fontSize: tokens.typography.body.fontSize,
+    fontWeight: '700' as const,
+    color: tokens.colors.secondary,
   },
   actions: {
     width: '100%',
