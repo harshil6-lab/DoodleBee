@@ -11,7 +11,8 @@ import { ComicSurface } from './ui/ComicSurface';
 import { tokens } from '../theme/tokens';
 import type { Player } from '../types';
 
-export type PlayerCardState = 'NORMAL' | 'HOST' | 'YOU' | 'DISCONNECTED';
+export type PlayerCardState =
+  'NORMAL' | 'HOST' | 'YOU' | 'WAITING' | 'DISCONNECTED';
 
 export interface PlayerCardProps {
   player: Player;
@@ -24,6 +25,7 @@ const STATE_TAG: Record<PlayerCardState, string> = {
   NORMAL: '',
   HOST: 'HOST',
   YOU: 'YOU',
+  WAITING: 'WAITING',
   DISCONNECTED: 'OFFLINE',
 };
 
