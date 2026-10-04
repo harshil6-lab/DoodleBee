@@ -2,24 +2,38 @@
  * Route: /nickname
  *
  * Entry: app launch with no session, or user chooses to change identity.
- * Exit: POST /session → store token/playerId → navigate to /
+ * Exit: POST /session -> store token/playerId -> navigate to /
  *
- * Uses real REST endpoint (`createSession`). No fake data.
- * Errors are shown inline per D04-011.
+ * Visual reference: Figma Make "DoodleBee" screen `nickname`. Behaviour is
+ * unchanged: real REST endpoint (`createSession`), inline errors per D04-011.
  */
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSessionStore } from '@/stores/session.store';
 import { createSession } from '@/api/endpoints';
 import type { SessionResponse } from '@/api/endpoints';
 import { NicknameSchema } from '@/validation/schemas';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
-import { tokens } from '@/theme/tokens';
+import { ScreenHeader } from '@/components/ScreenHeader';
+import { PaperBackground } from '@/components/ui/PaperBackground';
+import { ComicSurface } from '@/components/ui/ComicSurface';
+import { tokens } from '@/theme';
+
+const MAX_NICK = 20;
+const SUGGESTIONS = [
+  'SketchLord',
+  'DoodleGod',
+  'PicassoBro',
+  'ScribblePro',
+  'MasterBrush',
+];
 
 export default function NicknameScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const setPlayerId = useSessionStore((s) => s.setPlayerId);
   const setSessionToken = useSessionStore((s) => s.setSessionToken);
   const setNickname = useSessionStore((s) => s.setNickname);
@@ -66,71 +80,169 @@ export default function NicknameScreen() {
     }
   }
 
+  const goBack = () => router.replace('/');
+
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={styles.branding}>
-        <Text style={styles.logo}>🐝 DoodleBee</Text>
-        <Text style={styles.tagline}>Enter your nickname to play</Text>
-      </View>
+    <View style={styles.root}>
+      <PaperBackground />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + tokens.spacing.sm },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <ScreenHeader onBack={goBack} testID="nickname-back" />
 
-      <Input
-        value={input}
-        onChangeText={setInput}
-        placeholder="e.g. bee_doodler_42"
-        autoCapitalize="none"
-        returnKeyType="done"
-        onSubmitEditing={handleSubmit}
-        autoFocus
-        errorMessage={validationError ?? error}
-        testID="nickname-input"
-      />
+        <Text style={styles.headline}>What should{'\n'}we call you?</Text>
+        <Text style={styles.subtitle}>Make it weird. Make it iconic.</Text>
 
-      <Button
-        label="Continue"
-        onPress={handleSubmit}
-        disabled={!!validationError || submitting}
-        isLoading={submitting}
-        testID="nickname-submit"
-        style={styles.submitButton}
-      />
+        <View style={styles.inputWrap}>
+          <Input
+            value={input}
+            onChangeText={setInput}
+            placeholder="E.g. SketchLord..."
+            autoCapitalize="none"
+            maxLength={MAX_NICK}
+            returnKeyType="done"
+            onSubmitEditing={handleSubmit}
+            autoFocus
+            errorMessage={null}
+            testID="nickname-input"
+          />
+          <Text style={styles.counter}>
+            {input.length}/{MAX_NICK}
+          </Text>
+        </View>
 
-      {error && !validationError ? null : null}
-    </ScrollView>
+        <Text style={styles.sectionLabel}>Quick suggestions</Text>
+        <View style={styles.chips}>
+          {SUGGESTIONS.map((suggestion) => (
+            <Pressable key={suggestion} onPress={() => setInput(suggestion)}>
+              <ComicSurface
+                variant="sticker"
+                radius={tokens.radius.full}
+                backgroundColor={
+                  input === suggestion
+                    ? tokens.colors.beeYellow
+                    : tokens.colors.white
+                }
+                contentStyle={styles.chipInner}
+              >
+                <Text style={styles.chipText}>{suggestion}</Text>
+              </ComicSurface>
+            </Pressable>
+          ))}
+        </View>
+
+        {validationError || error ? (
+          <ComicSurface
+            variant="sticker"
+            radius={tokens.radius.sm}
+            backgroundColor={tokens.colors.cheek}
+            style={styles.hint}
+            contentStyle={styles.hintInner}
+          >
+            <Text style={styles.hintText}>★ {validationError ?? error}</Text>
+          </ComicSurface>
+        ) : null}
+
+        <Button
+          label="LET'S GO →"
+          variant="primary"
+          fullWidth
+          onPress={handleSubmit}
+          disabled={!!validationError || submitting}
+          isLoading={submitting}
+          testID="nickname-submit"
+          style={styles.submitButton}
+        />
+
+        <Text style={styles.footer}>Talent optional. Confidence required.</Text>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: tokens.colors.background,
+    backgroundColor: tokens.colors.cream,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
-    paddingHorizontal: tokens.spacing.xl,
-    paddingTop: tokens.spacing.xxxl,
-    paddingBottom: tokens.spacing.xxxl,
-    alignItems: 'center',
-    gap: tokens.spacing.lg,
+    paddingHorizontal: tokens.spacing.lg,
+    paddingBottom: tokens.spacing.xxl,
   },
-  branding: {
-    alignItems: 'center',
-    marginBottom: tokens.spacing.xxl,
-  },
-  logo: {
+  headline: {
+    marginTop: tokens.spacing.md,
+    fontFamily: tokens.typography.display.fontFamily,
     fontSize: tokens.typography.display.fontSize,
-    fontWeight: tokens.typography.display.fontWeight,
-    color: tokens.colors.textPrimary,
+    lineHeight: tokens.typography.display.lineHeight,
+    letterSpacing: tokens.typography.display.letterSpacing,
+    color: tokens.colors.ink,
   },
-  tagline: {
+  subtitle: {
+    marginTop: tokens.spacing.sm,
+    fontFamily: tokens.typography.body.fontFamily,
     fontSize: tokens.typography.body.fontSize,
     color: tokens.colors.textSecondary,
-    marginTop: tokens.spacing.xs,
+  },
+  inputWrap: {
+    marginTop: tokens.spacing.lg,
+  },
+  counter: {
+    position: 'absolute',
+    right: tokens.spacing.md,
+    top: 46,
+    fontFamily: tokens.typography.caption.fontFamily,
+    fontSize: tokens.typography.caption.fontSize,
+    color: tokens.colors.textMuted,
+  },
+  sectionLabel: {
+    marginTop: tokens.spacing.sm,
+    marginBottom: tokens.spacing.md,
+    fontFamily: tokens.typography.bodyBold.fontFamily,
+    fontSize: tokens.typography.bodyBold.fontSize,
+    color: tokens.colors.ink,
+  },
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: tokens.spacing.md,
+  },
+  chipInner: {
+    paddingVertical: tokens.spacing.sm,
+    paddingHorizontal: tokens.spacing.md,
+  },
+  chipText: {
+    fontFamily: tokens.typography.bodyBold.fontFamily,
+    fontSize: tokens.typography.body.fontSize,
+    color: tokens.colors.ink,
+  },
+  hint: {
+    marginTop: tokens.spacing.lg,
+  },
+  hintInner: {
+    paddingVertical: tokens.spacing.sm,
+    paddingHorizontal: tokens.spacing.md,
+  },
+  hintText: {
+    fontFamily: tokens.typography.bodyBold.fontFamily,
+    fontSize: tokens.typography.caption.fontSize,
+    color: tokens.colors.ink,
   },
   submitButton: {
-    width: '100%',
-    marginTop: tokens.spacing.md,
+    marginTop: tokens.spacing.lg,
+  },
+  footer: {
+    marginTop: tokens.spacing.lg,
+    fontFamily: tokens.typography.caption.fontFamily,
+    fontSize: tokens.typography.caption.fontSize,
+    color: tokens.colors.textSecondary,
+    textAlign: 'center',
   },
 });

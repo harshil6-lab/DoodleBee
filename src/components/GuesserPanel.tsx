@@ -1,12 +1,16 @@
 /**
- * GuesserPanel — masked word display, guess input, feedback overlay.
+ * GuesserPanel - masked word display, guess input, feedback overlay.
  *
  * Guesser-only component. Drawer must NOT render this panel.
- * Server is authoritative for guess correctness — client only submits
+ * Server is authoritative for guess correctness - client only submits
  * and displays outcomes from server events.
+ *
+ * SECRET-WORD BOUNDARY: this panel reads `maskedWord` only. It never reads
+ * or receives `secretWord` (the guesser store has no such field).
  */
 import React, { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { ComicSurface } from './ui/ComicSurface';
 import { tokens } from '../theme/tokens';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -65,33 +69,53 @@ export function GuesserPanel() {
     <View style={styles.container} testID="guesser-panel">
       {/* Feedback overlay */}
       {feedback ? (
-        <View
-          style={[
-            styles.feedback,
+        <ComicSurface
+          variant="sticker"
+          radius={tokens.radius.md}
+          backgroundColor={
             feedback === 'CORRECT'
-              ? styles.feedbackCorrect
+              ? tokens.colors.mint
               : feedback === 'CLOSE'
-                ? styles.feedbackClose
-                : styles.feedbackWrong,
-          ]}
+                ? tokens.colors.beeYellow
+                : tokens.colors.hotPink
+          }
+          contentStyle={styles.feedbackFace}
         >
-          <Text style={styles.feedbackText}>
+          <Text
+            style={[
+              styles.feedbackText,
+              feedback === 'WRONG' && styles.feedbackTextInverse,
+            ]}
+          >
             {feedback === 'CORRECT'
               ? 'Correct!'
               : feedback === 'CLOSE'
                 ? 'Close!'
                 : 'Not quite...'}
           </Text>
-        </View>
+        </ComicSurface>
       ) : null}
 
       {/* Masked word hint area */}
       <View style={styles.hintArea}>
         <Text style={styles.hintLabel}>Guess the word</Text>
         {maskedWord ? (
-          <Text style={styles.maskedWordText} testID="masked-word-guesser">
-            {maskedWord}
-          </Text>
+          <ComicSurface
+            variant="sticker"
+            radius={tokens.radius.md}
+            backgroundColor={tokens.colors.white}
+            contentStyle={styles.maskedCard}
+            style={styles.maskedCardWrap}
+          >
+            <Text
+              style={styles.maskedWordText}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              testID="masked-word-guesser"
+            >
+              {maskedWord}
+            </Text>
+          </ComicSurface>
         ) : (
           <Text style={styles.hintPlaceholder}>Waiting for drawer...</Text>
         )}
@@ -131,7 +155,7 @@ export function GuesserPanel() {
 
       {!isGuesser ? (
         <Text style={styles.drawerNotice}>
-          You are the drawer — draw, don&apos;t guess!
+          You are the drawer - draw, don&apos;t guess!
         </Text>
       ) : null}
     </View>
@@ -142,67 +166,60 @@ export function GuesserPanel() {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: tokens.colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: tokens.colors.borderLight,
+    backgroundColor: tokens.colors.cream,
+    borderTopWidth: tokens.border.comic,
+    borderTopColor: tokens.colors.ink,
     paddingHorizontal: tokens.spacing.md,
     paddingVertical: tokens.spacing.md,
     gap: tokens.spacing.md,
   },
-  feedback: {
+  feedbackFace: {
     paddingVertical: tokens.spacing.sm,
     paddingHorizontal: tokens.spacing.md,
-    borderRadius: tokens.radius.md,
     alignItems: 'center',
   },
-  feedbackCorrect: {
-    backgroundColor: `${tokens.colors.accentMint}22`,
-    borderWidth: 1,
-    borderColor: tokens.colors.accentMint,
-  },
-  feedbackClose: {
-    backgroundColor: `${tokens.colors.accentYellow}22`,
-    borderWidth: 1,
-    borderColor: tokens.colors.accentYellow,
-  },
-  feedbackWrong: {
-    backgroundColor: `${tokens.colors.danger}11`,
-  },
   feedbackText: {
-    fontSize: tokens.typography.body.fontSize,
-    fontWeight: '700' as const,
-    color: tokens.colors.textPrimary,
+    ...tokens.typography.bodyBold,
+    color: tokens.colors.ink,
+  },
+  feedbackTextInverse: {
+    color: tokens.colors.cream,
   },
   hintArea: {
     alignItems: 'center',
-    gap: tokens.spacing.xs,
+    gap: tokens.spacing.sm,
   },
   hintLabel: {
-    fontSize: tokens.typography.caption.fontSize,
-    color: tokens.colors.textMuted,
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.5,
+    ...tokens.typography.label,
+    color: tokens.colors.muted,
+    textTransform: 'uppercase',
+  },
+  maskedCardWrap: {
+    alignSelf: 'stretch',
+  },
+  maskedCard: {
+    paddingVertical: tokens.spacing.sm,
+    paddingHorizontal: tokens.spacing.md,
+    alignItems: 'center',
   },
   maskedWordText: {
-    fontSize: 28,
-    fontWeight: '700' as const,
-    color: tokens.colors.primary,
+    ...tokens.typography.heading,
+    color: tokens.colors.ink,
     letterSpacing: 6,
   },
   hintPlaceholder: {
-    fontSize: tokens.typography.caption.fontSize,
+    ...tokens.typography.caption,
     color: tokens.colors.textMuted,
     fontStyle: 'italic',
   },
   disabledHint: {
-    fontSize: tokens.typography.caption.fontSize,
+    ...tokens.typography.caption,
     color: tokens.colors.textMuted,
     textAlign: 'center',
   },
   drawerNotice: {
-    fontSize: tokens.typography.caption.fontSize,
+    ...tokens.typography.bodyBold,
     color: tokens.colors.secondary,
     textAlign: 'center',
-    fontWeight: '600' as const,
   },
 });

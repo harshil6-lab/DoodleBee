@@ -1,50 +1,86 @@
 /**
- * DoodleBee Design Tokens — centralized token system per Design.md §8.
- * All components consume these tokens — no hardcoded values in components.
- * Based on approved visual language: warm cream base, purple/pink/yellow accents.
+ * DoodleBee Design Tokens.
+ *
+ * Authoritative source: the approved Figma Make design system
+ * (fileKey `Dawg8P0YDyqCvAbwdUZ9Qv`, `src/index.css` `@theme` block plus the
+ * `.btn-comic`, `.sticker` and `.paper-dots` primitives).
+ *
+ * Per ADR AD-010 components consume tokens only - no raw colors, spacing,
+ * radii or timings in component files.
  */
+
+export const fonts = {
+  /** Display / headings / buttons - Paytone One. */
+  game: 'PaytoneOne_400Regular',
+  /** Body copy - Nunito. */
+  sans: 'Nunito_400Regular',
+  sansSemiBold: 'Nunito_600SemiBold',
+  sansBold: 'Nunito_700Bold',
+  sansExtraBold: 'Nunito_800ExtraBold',
+} as const;
 
 export const tokens = {
   colors: {
-    // Background
-    background: '#FAF7F0',
-    backgroundAlt: '#FFFFFF',
+    // Base surfaces
+    cream: '#FFF8ED',
+    white: '#FFFFFF',
+    outerBackdrop: '#120720',
 
-    // Surface
-    surface: '#FFFFFF',
-    surfaceElevated: '#FEFCF8',
-
-    // Text
-    textPrimary: '#1A1A2E',
-    textSecondary: '#4A4A6A',
-    textMuted: '#8888A0',
-    textInverse: '#FAF7F0',
-
-    // Borders
-    border: '#2D2D44',
-    borderLight: '#E0DDD5',
+    // Ink - borders, hard shadows, primary text
+    ink: '#1A0A2E',
 
     // Brand accents
-    primary: '#7B2CBF',
-    primaryDark: '#5A1D91',
-    secondary: '#FF6B9D',
-    accentYellow: '#FFD166',
-    accentMint: '#06D6A0',
-    accentBlue: '#118AB2',
+    purple: '#7C3AED',
+    hotPink: '#F91F7A',
+    beeYellow: '#FFD60A',
+    mint: '#10B981',
+    tangerine: '#FF6B35',
+    electricBlue: '#3B82F6',
 
-    // Feedback
-    success: '#06D6A0',
-    warning: '#FFD166',
-    danger: '#EF476F',
-    disabled: '#C4C4C4',
+    // Mascot
+    wing: '#CCF2FF',
+    cheek: '#FFB3C6',
 
-    // Game-specific
-    timerNormal: '#1A1A2E',
-    timerWarning: '#FFD166',
-    timerCritical: '#EF476F',
+    // Neutrals
+    stone: '#E3DBD5',
+    muted: '#9A8FA8',
+    borderLight: '#E5DCCF',
+
+    // Translucent tints used by the approved Make screens (error banners,
+    // highlight cards). They composite over the cream paper background the
+    // same way the design's rgba() overlays do.
+    tangerineWash: 'rgba(255,107,53,0.12)',
+    purpleWash: 'rgba(124,58,237,0.14)',
+    mintWash: 'rgba(16,185,129,0.14)',
+    lavender: '#F3F0FF',
+
+    // ---- Back-compat aliases used across the existing client ----
+    background: '#FFF8ED',
+    backgroundAlt: '#FFFFFF',
+    surface: '#FFFFFF',
+    surfaceElevated: '#FFFDF7',
+    textPrimary: '#1A0A2E',
+    textSecondary: '#5B4B6E',
+    textMuted: '#9A8FA8',
+    textInverse: '#FFF8ED',
+    border: '#1A0A2E',
+    primary: '#7C3AED',
+    primaryDark: '#6425D0',
+    secondary: '#F91F7A',
+    accentYellow: '#FFD60A',
+    accentMint: '#10B981',
+    accentBlue: '#3B82F6',
+    success: '#10B981',
+    warning: '#FFD60A',
+    danger: '#F91F7A',
+    disabled: '#C9C2D6',
+    timerNormal: '#1A0A2E',
+    timerWarning: '#FFD60A',
+    timerCritical: '#F91F7A',
   },
 
   spacing: {
+    xxs: 2,
     xs: 4,
     sm: 8,
     md: 16,
@@ -55,53 +91,103 @@ export const tokens = {
   },
 
   radius: {
-    sm: 8,
+    xs: 8,
+    sm: 12,
     md: 16,
-    lg: 24,
+    lg: 20,
+    xl: 24,
+    card: 20,
+    sheet: 28,
     full: 9999,
   },
 
+  /** Comic border widths from `.btn-comic` (3) and `.sticker` (2.5). */
+  border: {
+    hairline: 1.5,
+    sticker: 2.5,
+    comic: 3,
+  },
+
+  /** Hard, un-blurred offset shadows from `.btn-comic` / `.sticker`. */
+  hardShadow: {
+    comic: 5,
+    sticker: 3,
+    comicPressed: 3,
+    comicActive: 1,
+  },
+
   typography: {
+    logo: {
+      fontFamily: fonts.game,
+      fontSize: 26,
+      lineHeight: 30,
+      letterSpacing: 0.2,
+    },
     display: {
-      fontFamily: 'System',
-      fontSize: 32,
-      fontWeight: '700' as const,
-      lineHeight: 1.1,
-      letterSpacing: -0.5,
+      fontFamily: fonts.game,
+      fontSize: 40,
+      lineHeight: 42,
+      letterSpacing: -0.4,
     },
     heading: {
-      fontFamily: 'System',
+      fontFamily: fonts.game,
       fontSize: 24,
-      fontWeight: '700' as const,
-      lineHeight: 1.2,
+      lineHeight: 28,
+      letterSpacing: 0,
+    },
+    subheading: {
+      fontFamily: fonts.game,
+      fontSize: 19,
+      lineHeight: 24,
+      letterSpacing: 0.1,
     },
     body: {
-      fontFamily: 'System',
-      fontSize: 16,
-      fontWeight: '400' as const,
-      lineHeight: 1.5,
+      fontFamily: fonts.sans,
+      fontSize: 15,
+      lineHeight: 21,
+      letterSpacing: 0,
     },
-    caption: {
-      fontFamily: 'System',
-      fontSize: 14,
-      fontWeight: '400' as const,
-      lineHeight: 1.4,
+    bodyBold: {
+      fontFamily: fonts.sansBold,
+      fontSize: 15,
+      lineHeight: 21,
+      letterSpacing: 0,
     },
     button: {
-      fontFamily: 'System',
-      fontSize: 18,
-      fontWeight: '700' as const,
-      lineHeight: 1.2,
-      letterSpacing: 0.3,
+      fontFamily: fonts.game,
+      fontSize: 19,
+      lineHeight: 22,
+      letterSpacing: 0.6,
+    },
+    caption: {
+      fontFamily: fonts.sans,
+      fontSize: 13,
+      lineHeight: 18,
+      letterSpacing: 0,
+    },
+    label: {
+      fontFamily: fonts.sansExtraBold,
+      fontSize: 12,
+      lineHeight: 16,
+      letterSpacing: 1.2,
     },
   },
 
-  animation: {
-    durationFast: 150,
-    durationNormal: 300,
-    durationSlow: 500,
-    easeOut: 'ease-out' as const,
-    easeIn: 'ease-in' as const,
+  /** Durations mirroring the Make project keyframes. */
+  motion: {
+    popIn: 350,
+    slideUp: 400,
+    feedbackPop: 380,
+    timerThrob: 700,
+    floatBee: 3200,
+    press: 80,
+  },
+
+  /** `.paper-dots` - cream base with a 22px dot grid. */
+  paperDots: {
+    spacing: 22,
+    dotRadius: 1,
+    dotColor: 'rgba(26,10,46,0.12)',
   },
 
   zIndex: {

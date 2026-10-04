@@ -10,7 +10,12 @@
  * payload to any store other than the drawer store singleton.
  */
 import type { Socket } from 'socket.io-client';
-import type { SnapshotStroke, Stroke } from '../types';
+import type {
+  GamePhase,
+  RoundEndReason,
+  SnapshotStroke,
+  Stroke,
+} from '../types';
 import { useConnectionStore } from '../stores/connection.store';
 import { useDrawerGameStore } from '../stores/drawer.store';
 import { useGuesserGameStore } from '../stores/guesser.store';
@@ -18,6 +23,7 @@ import { useRoomStore } from '../stores/room.store';
 import { useSessionStore } from '../stores/session.store';
 import type { ServerToClientEventName } from '../../shared/contract/events';
 import { logger } from '../utils/logger';
+import { probeT1 } from '../utils/probe';
 
 // ------------------------------------------------------------------ Version ---
 
@@ -260,11 +266,25 @@ export function registerDispatcher(socket: Socket): () => void {
 
     // ── game:started ─────────────────────────────────────────────────
     'game:started': (payload: unknown) => {
-      const p = payload as { version: number };
+      const p = payload as {
+        gameId: string;
+        roundNumber: number;
+        roundsPlanned: number;
+        startingDeadline: number;
+        serverNow: number;
+        players: Array<{
+          playerId: string;
+          nickname: string;
+          isConnected: boolean;
+        }>;
+        version: number;
+      };
       if (p.version !== undefined && !shouldApply(p.version)) return;
       useDrawerGameStore.getState().setPhase('STARTING');
+      useDrawerGameStore.getState().setRoundsPlanned(p.roundsPlanned);
       useGuesserGameStore.getState().setPhase('STARTING');
-      logger.info({ event: 'game-started' });
+      useGuesserGameStore.getState().setRoundsPlanned(p.roundsPlanned);
+      logger.info({ event: 'game-started', roundsPlanned: p.roundsPlanned });
     },
 
     // ── round:started ────────────────────────────────────────────────
@@ -274,7 +294,7 @@ export function registerDispatcher(socket: Socket): () => void {
         drawerPlayerId: string;
         maskedWord: string;
         hintsRemaining: number;
-        timer: { roundEndTime: number };
+        timer: { roundEndTime: number; paused: boolean };
         version: number;
       };
       if (p.version !== undefined && !shouldApply(p.version)) return;
@@ -291,6 +311,10 @@ export function registerDispatcher(socket: Socket): () => void {
       useGuesserGameStore.getState().setHintsRemaining(p.hintsRemaining);
       useGuesserGameStore.getState().setTimer(p.timer);
       useGuesserGameStore.getState().setRoundNumber(p.roundNumber);
+      // Clear previous round result when a new round starts.
+      useDrawerGameStore.getState().setRoundResult(null);
+      useDrawerGameStore.getState().setNextDrawer(null);
+      useGuesserGameStore.getState().setNextDrawer(null);
       logger.info({
         event: 'round-started',
         roundNumber: p.roundNumber,
@@ -326,6 +350,7 @@ export function registerDispatcher(socket: Socket): () => void {
         version: number;
       };
       if (p.version !== undefined && !shouldApply(p.version)) return;
+      probeT1('draw:start');
       const stroke: Stroke = {
         id: p.strokeId,
         points: p.points,
@@ -368,7 +393,8 @@ export function registerDispatcher(socket: Socket): () => void {
     'draw:end': (payload: unknown) => {
       const p = payload as { strokeId: string; version: number };
       if (p.version !== undefined && !shouldApply(p.version)) return;
-      logger.info({ event: 'draw-end', strokeId: p.strokeId });
+      probeT1('draw:end');
+      logger.info({ event: 'draw:end', strokeId: p.strokeId });
     },
 
     // ── canvas:cleared ───────────────────────────────────────────────
@@ -431,9 +457,38 @@ export function registerDispatcher(socket: Socket): () => void {
     },
 
     // ── round:ended ──────────────────────────────────────────────────
-    'round:ended': (_payload: unknown) => {
-      logger.info({ event: 'round-ended' });
-      // Navigation is handled by the game screen component.
+    'round:ended': (payload: unknown) => {
+      const p = payload as {
+        roundNumber: number;
+        endReason: string;
+        word: string;
+        rankings: {
+          playerId: string;
+          nickname: string;
+          rank: number;
+          points: number;
+        }[];
+        drawerBonus: number;
+        drawerPoints: number;
+        version: number;
+      };
+      if (p.version !== undefined && !shouldApply(p.version)) return;
+      useDrawerGameStore.getState().setRoundResult({
+        roundNumber: p.roundNumber,
+        endReason: p.endReason as RoundEndReason,
+        word: p.word,
+        rankings: p.rankings,
+        drawerBonus: p.drawerBonus,
+        drawerPoints: p.drawerPoints,
+      });
+      useGuesserGameStore.getState().setRoundResult(null); // guesser store has no roundResult field
+      useDrawerGameStore.getState().setPhase('ROUND_FINISHED');
+      useGuesserGameStore.getState().setPhase('ROUND_FINISHED');
+      logger.info({
+        event: 'round-ended',
+        roundNumber: p.roundNumber,
+        endReason: p.endReason,
+      });
     },
 
     // ── score:updated ────────────────────────────────────────────────
@@ -449,9 +504,27 @@ export function registerDispatcher(socket: Socket): () => void {
     },
 
     // ── game:finished ────────────────────────────────────────────────
-    'game:finished': (_payload: unknown) => {
-      logger.info({ event: 'game-finished' });
-      // Navigation is handled by the game screen component.
+    'game:finished': (payload: unknown) => {
+      const p = payload as {
+        finalScores: Record<string, number>;
+        rankings: {
+          playerId: string;
+          nickname: string;
+          rank: number;
+          score: number;
+        }[];
+        winnerId: string;
+        version: number;
+      };
+      if (p.version !== undefined && !shouldApply(p.version)) return;
+      useDrawerGameStore.getState().setFinalResult({
+        finalScores: p.finalScores,
+        rankings: p.rankings,
+        winnerId: p.winnerId,
+      });
+      useDrawerGameStore.getState().setPhase('GAME_FINISHED');
+      useGuesserGameStore.getState().setPhase('GAME_FINISHED');
+      logger.info({ event: 'game-finished', winner: p.winnerId });
     },
 
     // ── player:disconnected ──────────────────────────────────────────
@@ -524,6 +597,7 @@ export function registerDispatcher(socket: Socket): () => void {
           hintsRemaining: number;
           timer: { roundEndTime: number | null; paused: boolean };
           secretWord?: string;
+          nextDrawerPlayerId?: string;
         };
         strokes: SnapshotStroke[];
         scores: Record<string, number>;
@@ -531,7 +605,7 @@ export function registerDispatcher(socket: Socket): () => void {
       if (!shouldApply(p.version)) return;
 
       const isDrawer = p.you.role === 'DRAWER';
-      const phase = p.game.phase as any;
+      const phase = p.game.phase as GamePhase;
       const timer = p.round.timer;
 
       if (isDrawer) {
@@ -543,6 +617,13 @@ export function registerDispatcher(socket: Socket): () => void {
         useDrawerGameStore.getState().setRoundNumber(p.game.roundNumber);
         useDrawerGameStore.getState().setRoundsPlanned(p.game.roundsPlanned);
         useDrawerGameStore.getState().setScores(p.scores);
+        if (p.round.nextDrawerPlayerId) {
+          useDrawerGameStore
+            .getState()
+            .setNextDrawer(p.round.nextDrawerPlayerId);
+        } else {
+          useDrawerGameStore.getState().setNextDrawer(null);
+        }
         if (p.round.secretWord) {
           useDrawerGameStore.getState().setSecretWord(p.round.secretWord);
         }
@@ -571,6 +652,13 @@ export function registerDispatcher(socket: Socket): () => void {
         useGuesserGameStore.getState().setRoundNumber(p.game.roundNumber);
         useGuesserGameStore.getState().setRoundsPlanned(p.game.roundsPlanned);
         useGuesserGameStore.getState().setScores(p.scores);
+        if (p.round.nextDrawerPlayerId) {
+          useGuesserGameStore
+            .getState()
+            .setNextDrawer(p.round.nextDrawerPlayerId);
+        } else {
+          useGuesserGameStore.getState().setNextDrawer(null);
+        }
         logger.info({
           event: 'snapshot-restored-guesser',
           phase,

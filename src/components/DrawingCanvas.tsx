@@ -1,11 +1,13 @@
 /**
- * DrawingCanvas — Skia-based shared canvas for drawer and guesser modes.
+ * DrawingCanvas - Skia-based shared canvas for drawer and guesser modes.
  *
  * Drawer mode: accepts touch input, renders local + remote strokes, emits
  * draw:start / draw:move / draw:end socket events.
  * Guesser mode: renders remote strokes only, no touch input accepted.
  *
- * Stroke representation matches `drawing-client-architecture.md` §3.
+ * Stroke representation matches `drawing-client-architecture.md` section 3.
+ * Phase 5 changed only the surrounding sticker frame - touch handling and
+ * stroke rendering are unchanged.
  */
 import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { PanResponder, StyleSheet, View } from 'react-native';
@@ -94,7 +96,7 @@ export function DrawingCanvas({
     }));
   }, [strokes, canvasSize]);
 
-  // Touch handling — drawer only.
+  // Touch handling - drawer only.
   const panResponder = useMemo(() => {
     return PanResponder.create({
       onStartShouldSetPanResponder: () => isDrawer,
@@ -171,7 +173,12 @@ export function DrawingCanvas({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: tokens.colors.background,
+    margin: tokens.spacing.md,
+    borderWidth: tokens.border.comic,
+    borderColor: tokens.colors.ink,
+    borderRadius: tokens.radius.md,
+    overflow: 'hidden',
+    backgroundColor: tokens.colors.white,
   },
   canvasWrapper: {
     flex: 1,

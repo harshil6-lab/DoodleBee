@@ -15,6 +15,7 @@ import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { DrawingCanvas } from '@/components/DrawingCanvas';
 import { DrawingToolbar } from '@/components/DrawingToolbar';
 import { GameHeader } from '@/components/GameHeader';
+import { PaperBackground } from '@/components/ui/PaperBackground';
 import { GuesserPanel } from '@/components/GuesserPanel';
 import { ChatPanel } from '@/components/ChatPanel';
 import { tokens } from '@/theme/tokens';
@@ -34,6 +35,7 @@ import {
 import { ClientToServerEvent, ServerToClientEvent } from '@/types';
 import type { Stroke, Point } from '@/types';
 import { env } from '@/config/env';
+import { probeT0 } from '@/utils/probe';
 
 // strokeSeq is a module-level counter for the drawer per round.
 const strokeSeqRef = { current: 0 };
@@ -202,7 +204,7 @@ export default function GameScreen() {
         useDrawerGameStore.getState().setHintsRemaining(p.hintsRemaining);
         useDrawerGameStore
           .getState()
-          .setTimer({ roundEndTime: p.timer.roundEndTime });
+          .setTimer({ roundEndTime: p.timer.roundEndTime, paused: false });
         useDrawerGameStore.getState().setRoundNumber(p.roundNumber);
       },
     );
@@ -326,12 +328,14 @@ export default function GameScreen() {
       const strokeId = crypto.randomUUID();
       currentStrokeIdRef.current = strokeId;
       currentStrokePointsRef.current = [];
+      const probe = probeT0();
       emitWithoutAck(ClientToServerEvent.DrawStart, {
         strokeId,
         strokeSeq: strokeSeqRef.current++,
         color: selectedColor,
         brushSize,
         points: [],
+        ...probe,
       });
       addStroke({
         id: strokeId,
@@ -346,10 +350,12 @@ export default function GameScreen() {
 
   const handleDrawMove = useCallback(
     (strokeId: string, _pointIndex: number, points: Point[]) => {
+      const probeMove = probeT0();
       emitWithoutAck(ClientToServerEvent.DrawMove, {
         strokeId,
         pointIndex: points.length - 1,
         points,
+        ...probeMove,
       });
       const lastPoint = points[points.length - 1];
       if (!lastPoint) return;
@@ -387,8 +393,10 @@ export default function GameScreen() {
   // ── Render ─────────────────────────────────────────────────────────────
   return (
     <View style={styles.container} testID="game-screen">
+      <PaperBackground />
+
       {/* Game header */}
-      <GameHeader />
+      <GameHeader isDrawer={isDrawer} />
 
       {/* Main area: canvas + side panel */}
       <ScrollView
@@ -447,11 +455,12 @@ const styles = StyleSheet.create({
   },
   leaveRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: tokens.spacing.md,
     paddingVertical: tokens.spacing.sm,
-    backgroundColor: tokens.colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: tokens.colors.borderLight,
+    backgroundColor: tokens.colors.cream,
+    borderTopWidth: tokens.border.comic,
+    borderTopColor: tokens.colors.ink,
   },
   spacer: { flex: 1 },
 });

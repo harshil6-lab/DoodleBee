@@ -1,5 +1,5 @@
 /**
- * ChatPanel — collapsible message list + input for in-game chat.
+ * ChatPanel - collapsible message list + input for in-game chat.
  *
  * Messages come from server events (`chat:message`, `guess:submitted`).
  * Ring buffer size is `CHAT_RING_SIZE` from shared contract constants.
@@ -37,6 +37,11 @@ export interface ChatEntry {
 function formatTime(ts: number): string {
   const d = new Date(ts);
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function initialsOf(nickname: string): string {
+  const letters = nickname.replace(/[^A-Za-z0-9]/g, '');
+  return letters.slice(0, 2).toUpperCase() || '?';
 }
 
 // ---------------------------------------------------------------- Component --
@@ -90,13 +95,13 @@ export function ChatPanel({
     () => (type: ChatMessageType) => {
       switch (type) {
         case 'CORRECT_GUESS':
-          return tokens.colors.accentMint;
+          return tokens.colors.mint;
         case 'SYSTEM':
-          return tokens.colors.textMuted;
+          return tokens.colors.muted;
         case 'GUESS':
           return tokens.colors.textSecondary;
         default:
-          return tokens.colors.textPrimary;
+          return tokens.colors.ink;
       }
     },
     [],
@@ -106,7 +111,7 @@ export function ChatPanel({
     <View style={styles.container} testID={testID}>
       {/* Header with toggle */}
       <View style={styles.header}>
-        <Text style={styles.title}>Chat</Text>
+        <Text style={styles.title}>💬 CHAT</Text>
         <Button
           label={expanded ? '▲' : '▼'}
           onPress={onToggle}
@@ -128,32 +133,33 @@ export function ChatPanel({
             ) : (
               messages.map((msg) => (
                 <View key={msg.id} style={styles.messageRow}>
-                  <Text
-                    style={[
-                      styles.messageTime,
-                      { color: tokens.colors.textMuted },
-                    ]}
-                  >
-                    {formatTime(msg.createdAt)}
-                  </Text>
-                  {msg.senderNickname ? (
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>
+                      {msg.senderNickname
+                        ? initialsOf(msg.senderNickname)
+                        : '★'}
+                    </Text>
+                  </View>
+                  <View style={styles.messageBody}>
+                    <View style={styles.messageMeta}>
+                      {msg.senderNickname ? (
+                        <Text style={styles.messageSender}>
+                          {msg.senderNickname}
+                        </Text>
+                      ) : null}
+                      <Text style={styles.messageTime}>
+                        {formatTime(msg.createdAt)}
+                      </Text>
+                    </View>
                     <Text
                       style={[
-                        styles.messageSender,
-                        { color: tokens.colors.textSecondary },
+                        styles.messageText,
+                        { color: messageColor(msg.messageType) },
                       ]}
                     >
-                      {msg.senderNickname}:
+                      {msg.text}
                     </Text>
-                  ) : null}
-                  <Text
-                    style={[
-                      styles.messageText,
-                      { color: messageColor(msg.messageType) },
-                    ]}
-                  >
-                    {msg.text}
-                  </Text>
+                  </View>
                 </View>
               ))
             )}
@@ -196,10 +202,10 @@ export function ChatPanel({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: tokens.colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: tokens.colors.borderLight,
-    maxHeight: 280,
+    backgroundColor: tokens.colors.cream,
+    borderTopWidth: tokens.border.comic,
+    borderTopColor: tokens.colors.ink,
+    maxHeight: 300,
   },
   header: {
     flexDirection: 'row',
@@ -207,20 +213,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: tokens.spacing.md,
     paddingVertical: tokens.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: tokens.colors.borderLight,
   },
   title: {
-    fontSize: tokens.typography.caption.fontSize,
-    fontWeight: '700' as const,
-    color: tokens.colors.textSecondary,
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.5,
+    ...tokens.typography.label,
+    color: tokens.colors.ink,
   },
   toggleButton: {
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    minHeight: 28,
+    paddingVertical: 0,
+    minHeight: 40,
   },
   messageList: {
     flex: 1,
@@ -229,10 +229,10 @@ const styles = StyleSheet.create({
   messageListContent: {
     paddingVertical: tokens.spacing.sm,
     paddingHorizontal: tokens.spacing.md,
-    gap: tokens.spacing.xs,
+    gap: tokens.spacing.sm,
   },
   emptyText: {
-    fontSize: tokens.typography.caption.fontSize,
+    ...tokens.typography.caption,
     color: tokens.colors.textMuted,
     fontStyle: 'italic',
     textAlign: 'center',
@@ -240,20 +240,46 @@ const styles = StyleSheet.create({
   },
   messageRow: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: tokens.spacing.sm,
+  },
+  avatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: tokens.colors.purple,
+    borderWidth: tokens.border.hairline,
+    borderColor: tokens.colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    ...tokens.typography.label,
+    fontSize: 11,
+    color: tokens.colors.cream,
+  },
+  messageBody: {
+    flex: 1,
+    gap: 2,
+  },
+  messageMeta: {
+    flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 4,
-    flexWrap: 'wrap',
+    gap: tokens.spacing.sm,
   },
   messageTime: {
-    fontSize: 11,
+    ...tokens.typography.label,
+    fontSize: 10,
+    color: tokens.colors.muted,
   },
   messageSender: {
-    fontSize: tokens.typography.caption.fontSize,
-    fontWeight: '600' as const,
+    ...tokens.typography.bodyBold,
+    fontSize: 13,
+    color: tokens.colors.ink,
   },
   messageText: {
-    fontSize: tokens.typography.caption.fontSize,
-    flex: 1,
+    ...tokens.typography.caption,
+    flexShrink: 1,
   },
   inputArea: {
     flexDirection: 'row',
@@ -267,7 +293,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   collapsedText: {
-    fontSize: tokens.typography.caption.fontSize,
+    ...tokens.typography.caption,
     color: tokens.colors.textMuted,
   },
 });

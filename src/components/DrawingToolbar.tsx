@@ -1,11 +1,17 @@
 /**
- * DrawingToolbar — drawer-only controls: colour, brush size, clear, hint.
+ * DrawingToolbar - drawer-only controls: colour, brush size, clear, hint.
  *
  * Colours and sizes follow `src/drawing/config.ts` defaults.
  * Hint button only enabled when `hintsRemaining > 0`.
+ *
+ * NOTE (Phase 5): the approved Figma Make mock shows additional tool modes
+ * (brush / eraser / size / more sheets). Those are not part of the approved
+ * drawing contract, so only the existing controls are restyled into the
+ * Figma visual language - no new tools are introduced.
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ComicSurface } from './ui/ComicSurface';
 import { tokens } from '../theme/tokens';
 import { useDrawerGameStore } from '../stores/drawer.store';
 import { useUiStore } from '../stores/ui.store';
@@ -26,6 +32,15 @@ const COLORS = [
 ] as const;
 const SIZES = [4, 8, 12, 16, 20] as const;
 
+/** Brush-size labels mirroring the approved size sheet (XS S M L XL). */
+const SIZE_LABELS: Record<number, string> = {
+  4: 'XS',
+  8: 'S',
+  12: 'M',
+  16: 'L',
+  20: 'XL',
+};
+
 // ---------------------------------------------------------------- Component --
 
 export function DrawingToolbar() {
@@ -36,6 +51,7 @@ export function DrawingToolbar() {
   const hintsRemaining = useDrawerGameStore((s) => s.hintsRemaining);
   const phase = useDrawerGameStore((s) => s.phase);
   const openModal = useUiStore((s) => s.openModal);
+  const [pressed, setPressed] = useState<string | null>(null);
 
   const handleClear = () => {
     if (phase !== 'ROUND_ACTIVE') return;
@@ -47,29 +63,37 @@ export function DrawingToolbar() {
     emitWithoutAck(ClientToServerEvent.UseHint, {});
   };
 
+  const toolsDisabled = phase !== 'ROUND_ACTIVE';
+
   return (
     <View style={styles.container} testID="drawing-toolbar">
+      <Text style={styles.sectionLabel}>🎨 COLOUR</Text>
+
       {/* Colour palette */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={styles.colorRow}
+        contentContainerStyle={styles.colorRow}
       >
         {COLORS.map((color) => (
           <Pressable
             key={color}
             onPress={() => setSelectedColor(color)}
-            style={[styles.colorSwatch, { backgroundColor: color }]}
+            style={[
+              styles.colorSwatch,
+              { backgroundColor: color },
+              selectedColor === color && styles.colorSwatchActive,
+            ]}
             testID={`color-${color.replace('#', '')}`}
           >
             {selectedColor === color ? (
-              <View style={styles.colorSelectedRing}>
-                <View style={styles.colorSelectedInner} />
-              </View>
+              <View style={styles.colorSelectedRing} />
             ) : null}
           </Pressable>
         ))}
       </ScrollView>
+
+      <Text style={styles.sectionLabel}>〰️ BRUSH SIZE</Text>
 
       {/* Brush sizes */}
       <View style={styles.sizeRow}>
@@ -77,18 +101,28 @@ export function DrawingToolbar() {
           <Pressable
             key={size}
             onPress={() => setBrushSize(size)}
-            style={[
-              styles.sizeButton,
-              brushSize === size && styles.sizeButtonActive,
-            ]}
+            style={styles.sizeButton}
             testID={`brush-size-${size}`}
           >
-            <View
-              style={[
-                styles.sizeDot,
-                { width: size, height: size, backgroundColor: selectedColor },
-              ]}
-            />
+            <ComicSurface
+              variant="sticker"
+              radius={tokens.radius.sm}
+              backgroundColor={
+                brushSize === size
+                  ? tokens.colors.beeYellow
+                  : tokens.colors.white
+              }
+              offset={2}
+              contentStyle={styles.sizeFace}
+            >
+              <Text style={styles.sizeLabel}>{SIZE_LABELS[size]}</Text>
+              <View
+                style={[
+                  styles.sizeDot,
+                  { width: size, height: size, backgroundColor: selectedColor },
+                ]}
+              />
+            </ComicSurface>
           </Pressable>
         ))}
       </View>
@@ -97,28 +131,66 @@ export function DrawingToolbar() {
       <View style={styles.actionsRow}>
         <Pressable
           onPress={handleClear}
-          disabled={phase !== 'ROUND_ACTIVE'}
-          style={[
-            styles.actionButton,
-            phase !== 'ROUND_ACTIVE' && styles.actionDisabled,
-          ]}
+          onPressIn={() => setPressed('clear')}
+          onPressOut={() => setPressed(null)}
+          disabled={toolsDisabled}
+          style={styles.actionSlot}
           testID="clear-canvas-toolbar-button"
         >
-          <Text style={styles.actionButtonText}>Clear</Text>
+          <ComicSurface
+            variant="comic"
+            radius={tokens.radius.sm}
+            backgroundColor={tokens.colors.hotPink}
+            offset={
+              pressed === 'clear' ? tokens.hardShadow.comicActive : undefined
+            }
+            contentStyle={[
+              styles.actionFace,
+              {
+                transform: [
+                  { translateX: pressed === 'clear' ? 4 : 0 },
+                  { translateY: pressed === 'clear' ? 4 : 0 },
+                ],
+              },
+              toolsDisabled && styles.actionDisabled,
+            ]}
+          >
+            <Text style={styles.actionTextLight}>🗑️ CLEAR</Text>
+          </ComicSurface>
         </Pressable>
+
         <Pressable
           onPress={handleHint}
-          disabled={phase !== 'ROUND_ACTIVE' || hintsRemaining <= 0}
-          style={[
-            styles.actionButton,
-            (phase !== 'ROUND_ACTIVE' || hintsRemaining <= 0) &&
-              styles.actionDisabled,
-          ]}
+          onPressIn={() => setPressed('hint')}
+          onPressOut={() => setPressed(null)}
+          disabled={toolsDisabled || hintsRemaining <= 0}
+          style={styles.actionSlot}
           testID="hint-button"
         >
-          <Text style={styles.actionButtonText}>
-            {hintsRemaining > 0 ? `Hint (${hintsRemaining})` : 'No Hints'}
-          </Text>
+          <ComicSurface
+            variant="comic"
+            radius={tokens.radius.sm}
+            backgroundColor={tokens.colors.beeYellow}
+            offset={
+              pressed === 'hint' ? tokens.hardShadow.comicActive : undefined
+            }
+            contentStyle={[
+              styles.actionFace,
+              {
+                transform: [
+                  { translateX: pressed === 'hint' ? 4 : 0 },
+                  { translateY: pressed === 'hint' ? 4 : 0 },
+                ],
+              },
+              (toolsDisabled || hintsRemaining <= 0) && styles.actionDisabled,
+            ]}
+          >
+            <Text style={styles.actionTextDark}>
+              {hintsRemaining > 0
+                ? `💡 HINT (${hintsRemaining})`
+                : '💡 NO HINTS'}
+            </Text>
+          </ComicSurface>
         </Pressable>
       </View>
     </View>
@@ -129,83 +201,92 @@ export function DrawingToolbar() {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: tokens.colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: tokens.colors.borderLight,
+    backgroundColor: tokens.colors.cream,
+    borderTopWidth: tokens.border.comic,
+    borderTopColor: tokens.colors.ink,
     paddingVertical: tokens.spacing.sm,
     paddingHorizontal: tokens.spacing.md,
     gap: tokens.spacing.sm,
   },
+  sectionLabel: {
+    ...tokens.typography.label,
+    color: tokens.colors.muted,
+  },
   colorRow: {
     flexDirection: 'row',
     gap: tokens.spacing.sm,
+    paddingVertical: 2,
+    paddingRight: tokens.spacing.sm,
   },
   colorSwatch: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: tokens.colors.borderLight,
+    borderWidth: tokens.border.sticker,
+    borderColor: tokens.colors.ink,
+  },
+  colorSwatchActive: {
+    borderWidth: tokens.border.comic,
+    borderColor: tokens.colors.purple,
   },
   colorSelectedRing: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: tokens.colors.beeYellow,
     borderWidth: 2,
-    borderColor: tokens.colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  colorSelectedInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: tokens.colors.primary,
+    borderColor: tokens.colors.ink,
   },
   sizeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: tokens.spacing.md,
+    justifyContent: 'space-between',
+    gap: tokens.spacing.sm,
   },
   sizeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    flex: 1,
+  },
+  sizeFace: {
+    minHeight: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: tokens.colors.borderLight,
-    backgroundColor: tokens.colors.background,
+    gap: 4,
   },
-  sizeButtonActive: {
-    borderColor: tokens.colors.primary,
-    backgroundColor: `${tokens.colors.primary}11`,
+  sizeLabel: {
+    ...tokens.typography.label,
+    color: tokens.colors.ink,
   },
   sizeDot: {
     borderRadius: 9999,
-    backgroundColor: '#000000',
+    borderWidth: 1,
+    borderColor: tokens.colors.ink,
   },
   actionsRow: {
     flexDirection: 'row',
     gap: tokens.spacing.sm,
   },
-  actionButton: {
+  actionSlot: {
     flex: 1,
-    paddingVertical: tokens.spacing.sm,
-    borderRadius: tokens.radius.md,
-    backgroundColor: tokens.colors.surface,
-    borderWidth: 1,
-    borderColor: tokens.colors.borderLight,
+  },
+  actionFace: {
+    minHeight: 52,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: tokens.spacing.sm,
+  },
+  actionTextLight: {
+    ...tokens.typography.button,
+    fontSize: 16,
+    color: tokens.colors.cream,
+  },
+  actionTextDark: {
+    ...tokens.typography.button,
+    fontSize: 16,
+    color: tokens.colors.ink,
   },
   actionDisabled: {
-    opacity: 0.4,
-  },
-  actionButtonText: {
-    fontSize: tokens.typography.caption.fontSize,
-    fontWeight: '600' as const,
-    color: tokens.colors.textPrimary,
+    opacity: 0.45,
   },
 });

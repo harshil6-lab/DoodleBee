@@ -1,8 +1,13 @@
 /**
- * Player card component for lobby and game header (Phase 1).
- * States: NORMAL, HOST, YOU, DISCONNECTED.
+ * Player tile - lobby roster card (Figma Make "DoodleBee" lobby).
+ *
+ * Approved treatment: a solid ink tile with cream text and a purple avatar
+ * badge carrying the player's initials. States: NORMAL, HOST, YOU,
+ * DISCONNECTED.
  */
+import type { StyleProp, ViewStyle } from 'react-native';
 import { StyleSheet, Text, View } from 'react-native';
+import { ComicSurface } from './ui/ComicSurface';
 import { tokens } from '../theme/tokens';
 import type { Player } from '../types';
 
@@ -11,84 +16,87 @@ export type PlayerCardState = 'NORMAL' | 'HOST' | 'YOU' | 'DISCONNECTED';
 export interface PlayerCardProps {
   player: Player;
   state: PlayerCardState;
+  style?: StyleProp<ViewStyle>;
   testID?: string;
 }
 
-const STATE_COLORS: Record<PlayerCardState, { bg: string; badge?: string }> = {
-  NORMAL: { bg: tokens.colors.surface },
-  HOST: {
-    bg: tokens.colors.surface,
-    badge: tokens.colors.accentYellow,
-  },
-  YOU: {
-    bg: tokens.colors.backgroundAlt,
-    badge: tokens.colors.primary,
-  },
-  DISCONNECTED: { bg: tokens.colors.surfaceElevated },
-};
-
-const STATE_LABELS: Record<PlayerCardState, string> = {
+const STATE_TAG: Record<PlayerCardState, string> = {
   NORMAL: '',
   HOST: 'HOST',
   YOU: 'YOU',
   DISCONNECTED: 'OFFLINE',
 };
 
-export function PlayerCard({ player, state, testID }: PlayerCardProps) {
-  const colors = STATE_COLORS[state];
+export function PlayerCard({ player, state, style, testID }: PlayerCardProps) {
+  const initials = player.nickname.slice(0, 2).toUpperCase();
+  const tag = STATE_TAG[state];
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.bg }]} testID={testID}>
-      <View style={styles.row}>
+    <ComicSurface
+      variant="sticker"
+      radius={tokens.radius.md}
+      backgroundColor={tokens.colors.ink}
+      borderColor={tokens.colors.ink}
+      style={style}
+      contentStyle={styles.inner}
+      testID={testID}
+    >
+      <View style={styles.badge}>
+        <Text style={styles.badgeText}>{initials}</Text>
+      </View>
+      <View style={styles.copy}>
         <Text style={styles.nickname} numberOfLines={1}>
           {player.nickname}
         </Text>
-        {colors.badge ? (
-          <View style={[styles.badge, { backgroundColor: colors.badge }]}>
-            <Text style={styles.badgeText}>{STATE_LABELS[state]}</Text>
-          </View>
+        {tag ? (
+          <Text style={styles.tag} numberOfLines={1}>
+            {player.isHost ? '👑 ' : ''}
+            {tag}
+          </Text>
         ) : null}
       </View>
-      {state === 'DISCONNECTED' ? (
-        <Text style={styles.statusDisconnected}>Disconnected</Text>
-      ) : null}
-    </View>
+    </ComicSurface>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderWidth: 1,
-    borderColor: tokens.colors.borderLight,
-    borderRadius: tokens.radius.md,
-    paddingVertical: tokens.spacing.sm,
-    paddingHorizontal: tokens.spacing.md,
-    marginBottom: tokens.spacing.sm,
-  },
-  row: {
+  inner: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     gap: tokens.spacing.sm,
-  },
-  nickname: {
-    fontSize: tokens.typography.body.fontSize,
-    color: tokens.colors.textPrimary,
-    flex: 1,
+    paddingVertical: tokens.spacing.sm,
+    paddingHorizontal: tokens.spacing.sm,
   },
   badge: {
-    paddingHorizontal: tokens.spacing.sm,
-    paddingVertical: 2,
-    borderRadius: tokens.radius.sm,
+    width: 34,
+    height: 34,
+    borderRadius: tokens.radius.full,
+    backgroundColor: tokens.colors.purple,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   badgeText: {
-    fontSize: tokens.typography.caption.fontSize,
-    fontWeight: '700' as const,
-    color: tokens.colors.textInverse,
+    fontFamily: tokens.typography.label.fontFamily,
+    fontSize: tokens.typography.label.fontSize,
+    lineHeight: tokens.typography.label.lineHeight,
+    letterSpacing: 0.6,
+    color: tokens.colors.cream,
   },
-  statusDisconnected: {
-    fontSize: tokens.typography.caption.fontSize,
-    color: tokens.colors.textMuted,
-    marginTop: tokens.spacing.xs,
+  copy: {
+    flex: 1,
+  },
+  nickname: {
+    fontFamily: tokens.typography.bodyBold.fontFamily,
+    fontSize: tokens.typography.bodyBold.fontSize,
+    lineHeight: tokens.typography.bodyBold.lineHeight,
+    color: tokens.colors.cream,
+  },
+  tag: {
+    marginTop: tokens.spacing.xxs,
+    fontFamily: tokens.typography.label.fontFamily,
+    fontSize: tokens.typography.label.fontSize,
+    lineHeight: tokens.typography.label.lineHeight,
+    letterSpacing: 0.8,
+    color: tokens.colors.beeYellow,
   },
 });
