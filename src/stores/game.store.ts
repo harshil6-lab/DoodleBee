@@ -19,6 +19,10 @@ export interface GameBaseState {
   scores: Record<string, number>;
   hintsRemaining: number;
   timer: RoundTimer;
+  /** Current round number (1-based). */
+  roundNumber: number;
+  /** Total rounds planned for this game. */
+  roundsPlanned: number;
 }
 
 export interface GameBaseActions {
@@ -28,6 +32,8 @@ export interface GameBaseActions {
   setScores: (scores: Record<string, number>) => void;
   setHintsRemaining: (count: number) => void;
   setTimer: (timer: RoundTimer) => void;
+  setRoundNumber: (n: number) => void;
+  setRoundsPlanned: (n: number) => void;
   addScore: (playerId: string, points: number) => void;
   resetForRound: () => void;
 }
@@ -52,6 +58,8 @@ export const createGameBaseSlice = <TState extends GameBaseState>(
   scores: {},
   hintsRemaining: 0,
   timer: { roundEndTime: null },
+  roundNumber: 1,
+  roundsPlanned: 3,
 
   setPhase: (phase) => set({ phase } as Partial<TState>),
   setDrawer: (drawer) => set({ drawer } as Partial<TState>),
@@ -60,6 +68,9 @@ export const createGameBaseSlice = <TState extends GameBaseState>(
   setHintsRemaining: (hintsRemaining) =>
     set({ hintsRemaining } as Partial<TState>),
   setTimer: (timer) => set({ timer } as Partial<TState>),
+  setRoundNumber: (roundNumber) => set({ roundNumber } as Partial<TState>),
+  setRoundsPlanned: (roundsPlanned) =>
+    set({ roundsPlanned } as Partial<TState>),
   addScore: (playerId, points) =>
     set(
       (state) =>
