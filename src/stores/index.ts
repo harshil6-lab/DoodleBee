@@ -23,6 +23,8 @@ export type {
   GameBaseActions,
   GameBaseState,
   GameBaseStore,
+  RoundResult,
+  FinalResult,
 } from './game.store';
 
 export { useUiStore } from './ui.store';

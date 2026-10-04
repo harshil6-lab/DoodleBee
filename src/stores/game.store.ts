@@ -8,7 +8,32 @@
  * Never written by REST responses or local user interaction.
  */
 import { create } from 'zustand';
-import type { GamePhase, RoundTimer } from '../types';
+import type { GamePhase, RoundEndReason, RoundTimer } from '../types';
+
+export interface RoundResult {
+  roundNumber: number;
+  endReason: RoundEndReason;
+  word: string;
+  rankings: Array<{
+    playerId: string;
+    nickname: string;
+    rank: number;
+    points: number;
+  }>;
+  drawerBonus: number;
+  drawerPoints: number;
+}
+
+export interface FinalResult {
+  finalScores: Record<string, number>;
+  rankings: Array<{
+    playerId: string;
+    nickname: string;
+    rank: number;
+    score: number;
+  }>;
+  winnerId: string;
+}
 
 export interface GameBaseState {
   phase: GamePhase;
@@ -23,6 +48,10 @@ export interface GameBaseState {
   roundNumber: number;
   /** Total rounds planned for this game. */
   roundsPlanned: number;
+  /** Result of the most recently completed round (populated by round:ended). */
+  roundResult: RoundResult | null;
+  /** Result of the completed game (populated by game:finished). */
+  finalResult: FinalResult | null;
 }
 
 export interface GameBaseActions {
@@ -34,6 +63,8 @@ export interface GameBaseActions {
   setTimer: (timer: RoundTimer) => void;
   setRoundNumber: (n: number) => void;
   setRoundsPlanned: (n: number) => void;
+  setRoundResult: (result: RoundResult | null) => void;
+  setFinalResult: (result: FinalResult | null) => void;
   addScore: (playerId: string, points: number) => void;
   resetForRound: () => void;
 }
@@ -60,6 +91,8 @@ export const createGameBaseSlice = <TState extends GameBaseState>(
   timer: { roundEndTime: null },
   roundNumber: 1,
   roundsPlanned: 3,
+  roundResult: null,
+  finalResult: null,
 
   setPhase: (phase) => set({ phase } as Partial<TState>),
   setDrawer: (drawer) => set({ drawer } as Partial<TState>),
@@ -71,6 +104,8 @@ export const createGameBaseSlice = <TState extends GameBaseState>(
   setRoundNumber: (roundNumber) => set({ roundNumber } as Partial<TState>),
   setRoundsPlanned: (roundsPlanned) =>
     set({ roundsPlanned } as Partial<TState>),
+  setRoundResult: (roundResult) => set({ roundResult } as Partial<TState>),
+  setFinalResult: (finalResult) => set({ finalResult } as Partial<TState>),
   addScore: (playerId, points) =>
     set(
       (state) =>

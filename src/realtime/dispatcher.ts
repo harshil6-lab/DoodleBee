@@ -291,6 +291,8 @@ export function registerDispatcher(socket: Socket): () => void {
       useGuesserGameStore.getState().setHintsRemaining(p.hintsRemaining);
       useGuesserGameStore.getState().setTimer(p.timer);
       useGuesserGameStore.getState().setRoundNumber(p.roundNumber);
+      // Clear previous round result when a new round starts.
+      useDrawerGameStore.getState().setRoundResult(null);
       logger.info({
         event: 'round-started',
         roundNumber: p.roundNumber,
@@ -431,9 +433,38 @@ export function registerDispatcher(socket: Socket): () => void {
     },
 
     // ── round:ended ──────────────────────────────────────────────────
-    'round:ended': (_payload: unknown) => {
-      logger.info({ event: 'round-ended' });
-      // Navigation is handled by the game screen component.
+    'round:ended': (payload: unknown) => {
+      const p = payload as {
+        roundNumber: number;
+        endReason: string;
+        word: string;
+        rankings: Array<{
+          playerId: string;
+          nickname: string;
+          rank: number;
+          points: number;
+        }>;
+        drawerBonus: number;
+        drawerPoints: number;
+        version: number;
+      };
+      if (p.version !== undefined && !shouldApply(p.version)) return;
+      useDrawerGameStore.getState().setRoundResult({
+        roundNumber: p.roundNumber,
+        endReason: p.endReason as any,
+        word: p.word,
+        rankings: p.rankings,
+        drawerBonus: p.drawerBonus,
+        drawerPoints: p.drawerPoints,
+      });
+      useGuesserGameStore.getState().setRoundResult(null); // guesser store has no roundResult field
+      useDrawerGameStore.getState().setPhase('ROUND_FINISHED');
+      useGuesserGameStore.getState().setPhase('ROUND_FINISHED');
+      logger.info({
+        event: 'round-ended',
+        roundNumber: p.roundNumber,
+        endReason: p.endReason,
+      });
     },
 
     // ── score:updated ────────────────────────────────────────────────
@@ -449,9 +480,27 @@ export function registerDispatcher(socket: Socket): () => void {
     },
 
     // ── game:finished ────────────────────────────────────────────────
-    'game:finished': (_payload: unknown) => {
-      logger.info({ event: 'game-finished' });
-      // Navigation is handled by the game screen component.
+    'game:finished': (payload: unknown) => {
+      const p = payload as {
+        finalScores: Record<string, number>;
+        rankings: Array<{
+          playerId: string;
+          nickname: string;
+          rank: number;
+          score: number;
+        }>;
+        winnerId: string;
+        version: number;
+      };
+      if (p.version !== undefined && !shouldApply(p.version)) return;
+      useDrawerGameStore.getState().setFinalResult({
+        finalScores: p.finalScores,
+        rankings: p.rankings,
+        winnerId: p.winnerId,
+      });
+      useDrawerGameStore.getState().setPhase('GAME_FINISHED');
+      useGuesserGameStore.getState().setPhase('GAME_FINISHED');
+      logger.info({ event: 'game-finished', winner: p.winnerId });
     },
 
     // ── player:disconnected ──────────────────────────────────────────
