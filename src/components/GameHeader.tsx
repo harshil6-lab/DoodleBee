@@ -74,9 +74,28 @@ export function GameHeader({ isDrawer = false }: GameHeaderProps) {
     return `${secs}s`;
   };
 
-  const isRoundActive = phase === 'ROUND_ACTIVE' || phase === 'STARTING';
+  const nextDrawerPlayerId = useDrawerGameStore((s) => s.nextDrawerPlayerId);
+  const isRoundActive =
+    phase === 'ROUND_ACTIVE' || phase === 'STARTING' || phase === 'NEXT_ROUND';
   const ownScore = playerId ? (scores[playerId] ?? 0) : 0;
   const playerCount = players.length;
+
+  const phaseLabel = useMemo(() => {
+    if (phase === 'STARTING') return '🚀 GET READY';
+    if (phase === 'NEXT_ROUND') return '⏭️ NEXT UP';
+    return isDrawer ? '✏️ YOUR TURN' : '👀 WATCHING';
+  }, [phase, isDrawer]);
+
+  const phaseTagline = useMemo(() => {
+    if (phase === 'STARTING') return 'THE NEXT DRAWER IS GETTING READY...';
+    if (phase === 'NEXT_ROUND') {
+      const name = nextDrawerPlayerId
+        ? players.find((p) => p.playerId === nextDrawerPlayerId)?.nickname
+        : undefined;
+      return `DRAWING: ${name || '?'}`;
+    }
+    return isDrawer ? "DON'T PANIC. JUST DRAW." : 'WATCH CLOSELY 👀';
+  }, [phase, nextDrawerPlayerId, players, isDrawer]);
 
   return (
     <View style={styles.container} testID="game-header">
@@ -119,12 +138,8 @@ export function GameHeader({ isDrawer = false }: GameHeaderProps) {
 
       {/* Role banner */}
       <View style={styles.banner}>
-        <Text style={styles.bannerLead}>
-          {isDrawer ? '✏️ YOUR TURN' : '👀 WATCHING'}
-        </Text>
-        <Text style={styles.bannerTagline}>
-          {isDrawer ? 'DON’T PANIC. JUST DRAW.' : 'WATCH CLOSELY 👀'}
-        </Text>
+        <Text style={styles.bannerLead}>{phaseLabel}</Text>
+        <Text style={styles.bannerTagline}>{phaseTagline}</Text>
       </View>
 
       {/* Word card + hints */}
