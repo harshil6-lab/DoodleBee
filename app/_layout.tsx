@@ -1,4 +1,16 @@
+import { useCallback, useEffect } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { Stack } from 'expo-router';
+import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ConnectionBanner } from '@/components/ConnectionBanner';
+import { fontAssets, tokens } from '@/theme';
+
+// Hold the native splash until the approved type is ready so the first frame
+// is never rendered in a fallback font.
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 /**
  * Production navigation - the 9 approved routes from
@@ -10,17 +22,51 @@ import { Stack } from 'expo-router';
  * name, while a dynamic route keeps its `[param]` segment.
  */
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts(fontAssets);
+
+  const onReady = useCallback(() => {
+    if (fontsLoaded || fontError) {
+      SplashScreen.hideAsync().catch(() => undefined);
+    }
+  }, [fontsLoaded, fontError]);
+
+  useEffect(() => {
+    onReady();
+  }, [onReady]);
+
+  if (!fontsLoaded && !fontError) {
+    return null;
+  }
+
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(index)" />
-      <Stack.Screen name="nickname" />
-      <Stack.Screen name="create-room" />
-      <Stack.Screen name="join-room" />
-      <Stack.Screen name="lobby/[roomId]" />
-      <Stack.Screen name="game/[roomId]" />
-      <Stack.Screen name="round-result/[roomId]" />
-      <Stack.Screen name="final-result/[roomId]" />
-      <Stack.Screen name="settings" />
-    </Stack>
+    <SafeAreaProvider>
+      <View style={styles.root}>
+        <StatusBar style="dark" />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: tokens.colors.cream },
+          }}
+        >
+          <Stack.Screen name="(index)" />
+          <Stack.Screen name="nickname" />
+          <Stack.Screen name="create-room" />
+          <Stack.Screen name="join-room" />
+          <Stack.Screen name="lobby/[roomId]" />
+          <Stack.Screen name="game/[roomId]" />
+          <Stack.Screen name="round-result/[roomId]" />
+          <Stack.Screen name="final-result/[roomId]" />
+          <Stack.Screen name="settings" />
+        </Stack>
+        <ConnectionBanner />
+      </View>
+    </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: tokens.colors.cream,
+  },
+});

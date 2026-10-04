@@ -58,6 +58,8 @@ export type GamePhase =
 export interface RoundTimer {
   /** Unix timestamp in milliseconds, or null when no round is running. */
   roundEndTime: number | null;
+  /** True when the round timer is paused (e.g. drawer grace period). */
+  paused: boolean;
 }
 
 // --------------------------------------------------------------- Drawing ----

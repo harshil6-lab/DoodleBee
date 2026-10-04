@@ -2,22 +2,31 @@
  * Route: /join-room
  *
  * Entry: user taps "Join Room" from home.
- * Exit: POST /rooms/join → store room info → connect socket + join:room → /lobby/:roomId
+ * Exit: POST /rooms/join -> store room info -> connect socket + join:room -> /lobby/:roomId
  *
  * Error states are inline banners (D04-011), not separate routes.
+ *
+ * Visual reference: Figma Make "DoodleBee" `join-empty`, `join-invalid` and
+ * `join-full`. Behaviour (validation gate, REST + socket join, error mapping)
+ * is unchanged from the functional baseline.
  */
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSessionStore } from '@/stores/session.store';
 import { useRoomStore } from '@/stores/room.store';
 import { joinRoomByCode } from '@/api/endpoints';
 import { joinRoom as joinRoomSocket } from '@/realtime/socket';
 import type { RoomJoinResponse } from '@/types';
 import { RoomCodeSchema } from '@/validation/schemas';
-import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
-import { tokens } from '@/theme/tokens';
+import { CodeInput } from '@/components/CodeInput';
+import { FeedbackCard } from '@/components/FeedbackCard';
+import { ScreenHeader } from '@/components/ScreenHeader';
+import { PaperBackground } from '@/components/ui/PaperBackground';
+import { ComicSurface } from '@/components/ui/ComicSurface';
+import { tokens } from '@/theme';
 import { env } from '@/config/env';
 
 // ------------------------------------------------------------------ Types ----
@@ -30,10 +39,52 @@ type JoinError =
   | 'NETWORK_ERROR'
   | null;
 
+interface FeedbackVisual {
+  icon: string;
+  title?: string;
+  message?: string;
+}
+
+/**
+ * Copy for the server-mapped error states. `INVALID_CODE` and `ROOM_NOT_FOUND`
+ * share the approved "that code doesn't exist" banner. The two states the
+ * approved screens do not cover (already started, network failure) reuse the
+ * existing client copy with no invented headline.
+ */
+const FEEDBACK: Record<Exclude<JoinError, null>, FeedbackVisual> = {
+  INVALID_CODE: {
+    icon: '🤔',
+    title: "That code doesn't exist!",
+    message: 'Double-check with your host and try again.',
+  },
+  ROOM_NOT_FOUND: {
+    icon: '🤔',
+    title: "That code doesn't exist!",
+    message: 'Double-check with your host and try again.',
+  },
+  ROOM_FULL: {
+    icon: '😭',
+    title: "ROOM'S PACKED",
+    message: 'This room is full. Tell your friends to make room for you 👊',
+  },
+  GAME_ALREADY_STARTED: {
+    icon: '⏰',
+    message: 'The game has already started.',
+  },
+  NETWORK_ERROR: {
+    icon: '📡',
+    message: 'Connection failed. Check your network and retry.',
+  },
+};
+
+/** The approved design renders six slots; the domain allows 5 or 6 chars. */
+const CODE_LENGTH = 6;
+
 // ---------------------------------------------------------------- Component --
 
 export default function JoinRoomScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const setRoomId = useSessionStore((s) => s.setRoomId);
   const setReconnectInfo = useSessionStore((s) => s.setReconnectInfo);
   const setRoomJoined = useRoomStore((s) => s.setRoomJoined);
@@ -55,7 +106,7 @@ export default function JoinRoomScreen() {
         return 'ROOM_NOT_FOUND';
       case 409:
         // Distinguish room-full vs game-already-started if possible.
-        // The server uses 409 for both — we fall back to ROOM_FULL.
+        // The server uses 409 for both - we fall back to ROOM_FULL.
         return 'ROOM_FULL';
       case 0:
         return 'NETWORK_ERROR';
@@ -114,102 +165,200 @@ export default function JoinRoomScreen() {
     }
   }
 
-  const errorMsg =
-    joinError === 'INVALID_CODE'
-      ? (inputError ?? 'Enter a valid room code')
-      : joinError === 'ROOM_NOT_FOUND'
-        ? 'Room not found. Check the code and try again.'
-        : joinError === 'ROOM_FULL'
-          ? 'This room is full.'
-          : joinError === 'GAME_ALREADY_STARTED'
-            ? 'The game has already started.'
-            : joinError === 'NETWORK_ERROR'
-              ? 'Connection failed. Check your network and retry.'
-              : null;
+  const goBack = () => router.replace('/');
+
+  const hasError = !!inputError || joinError !== null;
+
+  const feedback: FeedbackVisual | null = joinError
+    ? joinError === 'INVALID_CODE' && inputError
+      ? { ...FEEDBACK.INVALID_CODE, message: inputError }
+      : FEEDBACK[joinError]
+    : null;
+
+  const remaining = CODE_LENGTH - code.length;
+  const helper = inputError
+    ? inputError
+    : remaining > 0
+      ? `Enter ${remaining} more char${remaining === 1 ? '' : 's'}…`
+      : null;
+
+  const clearCode = () => {
+    setCode('');
+    setInputError(null);
+    setJoinError(null);
+  };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={styles.branding}>
-        <Text style={styles.logo}>🐝 DoodleBee</Text>
-        <Text style={styles.tagline}>Enter the room code to join</Text>
-      </View>
+    <View style={styles.root}>
+      <PaperBackground />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + tokens.spacing.sm },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <ScreenHeader onBack={goBack} testID="join-room-back" />
 
-      <Input
-        value={code}
-        onChangeText={(v) => {
-          setCode(v.toUpperCase());
-          setInputError(null);
-          setJoinError(null);
-        }}
-        placeholder="ABCDE"
-        autoCapitalize="none"
-        keyboardType="default"
-        maxLength={6}
-        returnKeyType="go"
-        onSubmitEditing={handleJoin}
-        autoFocus
-        errorMessage={inputError ?? undefined}
-        testID="room-code-input"
-      />
-
-      {errorMsg ? (
-        <Text style={styles.errorText} testID="join-error">
-          {errorMsg}
+        <Text style={styles.headline}>
+          WHAT&apos;S THE{'\n'}SECRET CODE? 🗝️
         </Text>
-      ) : null}
+        <Text style={styles.subtitle}>
+          Ask your host for the {CODE_LENGTH}-character code.
+        </Text>
 
-      <Button
-        label="Join Room"
-        onPress={handleJoin}
-        disabled={!!validationError || joining}
-        isLoading={joining}
-        testID="join-room-submit"
-        style={styles.submitButton}
-      />
-    </ScrollView>
+        <View style={styles.codeWrap}>
+          <CodeInput
+            value={code}
+            onChangeText={(v) => {
+              setCode(v.toUpperCase());
+              setInputError(null);
+              setJoinError(null);
+            }}
+            length={CODE_LENGTH}
+            autoFocus
+            hasError={hasError}
+            onSubmitEditing={handleJoin}
+            testID="room-code-input"
+          />
+        </View>
+
+        <View style={styles.helperRow}>
+          <Text style={styles.helperLeft}>Letters and numbers only</Text>
+          {code.length > 0 ? (
+            <Pressable
+              onPress={clearCode}
+              hitSlop={8}
+              accessibilityRole="button"
+              testID="join-clear"
+            >
+              <Text style={styles.clear}>Clear</Text>
+            </Pressable>
+          ) : null}
+        </View>
+
+        {feedback ? (
+          <FeedbackCard
+            icon={feedback.icon}
+            title={feedback.title}
+            message={feedback.message}
+            style={styles.feedback}
+            testID="join-error"
+          />
+        ) : null}
+
+        <ComicSurface
+          variant="sticker"
+          radius={tokens.radius.sm}
+          backgroundColor={tokens.colors.hotPink}
+          style={styles.hint}
+          contentStyle={styles.hintInner}
+        >
+          <Text style={styles.hintText}>
+            ★ Only share the code with the people you actually like.
+          </Text>
+        </ComicSurface>
+
+        {helper ? (
+          <Text
+            style={[styles.helper, inputError ? styles.helperError : null]}
+            testID="join-helper"
+          >
+            {helper}
+          </Text>
+        ) : (
+          <View style={styles.helperSpacer} />
+        )}
+
+        <Button
+          label="🔑 JOIN ROOM"
+          variant="primary"
+          fullWidth
+          onPress={handleJoin}
+          disabled={!!validationError || joining}
+          isLoading={joining}
+          testID="join-room-submit"
+        />
+      </ScrollView>
+    </View>
   );
 }
 
 // --------------------------------------------------------- Styles ----------
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: tokens.colors.background,
+    backgroundColor: tokens.colors.cream,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
-    paddingHorizontal: tokens.spacing.xl,
-    paddingTop: tokens.spacing.xxxl,
-    paddingBottom: tokens.spacing.xxxl,
-    alignItems: 'center',
-    gap: tokens.spacing.lg,
+    paddingHorizontal: tokens.spacing.lg,
+    paddingBottom: tokens.spacing.xxl,
   },
-  branding: {
-    alignItems: 'center',
-    marginBottom: tokens.spacing.xxl,
-  },
-  logo: {
-    fontSize: tokens.typography.display.fontSize,
-    fontWeight: tokens.typography.display.fontWeight,
-    color: tokens.colors.textPrimary,
-  },
-  tagline: {
-    fontSize: tokens.typography.body.fontSize,
-    color: tokens.colors.textSecondary,
-    marginTop: tokens.spacing.xs,
-  },
-  errorText: {
-    fontSize: tokens.typography.caption.fontSize,
-    color: tokens.colors.danger,
-    textAlign: 'center',
-    minHeight: 20,
-  },
-  submitButton: {
-    width: '100%',
+  headline: {
     marginTop: tokens.spacing.md,
+    fontFamily: tokens.typography.display.fontFamily,
+    fontSize: tokens.typography.display.fontSize,
+    lineHeight: tokens.typography.display.lineHeight,
+    letterSpacing: tokens.typography.display.letterSpacing,
+    color: tokens.colors.ink,
+  },
+  subtitle: {
+    marginTop: tokens.spacing.sm,
+    fontFamily: tokens.typography.body.fontFamily,
+    fontSize: tokens.typography.body.fontSize,
+    lineHeight: tokens.typography.body.lineHeight,
+    color: tokens.colors.textSecondary,
+  },
+  codeWrap: {
+    marginTop: tokens.spacing.lg,
+  },
+  helperRow: {
+    marginTop: tokens.spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  helperLeft: {
+    fontFamily: tokens.typography.caption.fontFamily,
+    fontSize: tokens.typography.caption.fontSize,
+    color: tokens.colors.textMuted,
+  },
+  clear: {
+    fontFamily: tokens.typography.bodyBold.fontFamily,
+    fontSize: tokens.typography.caption.fontSize,
+    color: tokens.colors.purple,
+  },
+  feedback: {
+    marginTop: tokens.spacing.lg,
+  },
+  hint: {
+    marginTop: tokens.spacing.lg,
+  },
+  hintInner: {
+    paddingVertical: tokens.spacing.sm,
+    paddingHorizontal: tokens.spacing.md,
+  },
+  hintText: {
+    fontFamily: tokens.typography.bodyBold.fontFamily,
+    fontSize: tokens.typography.caption.fontSize,
+    lineHeight: tokens.typography.caption.lineHeight,
+    color: tokens.colors.white,
+  },
+  helper: {
+    marginTop: tokens.spacing.sm,
+    fontFamily: tokens.typography.bodyBold.fontFamily,
+    fontSize: tokens.typography.bodyBold.fontSize,
+    color: tokens.colors.textSecondary,
+  },
+  helperError: {
+    color: tokens.colors.tangerine,
+  },
+  helperSpacer: {
+    height: tokens.spacing.lg,
   },
 });

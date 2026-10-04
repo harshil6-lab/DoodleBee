@@ -23,7 +23,12 @@ export type {
   GameBaseActions,
   GameBaseState,
   GameBaseStore,
+  RoundResult,
+  FinalResult,
 } from './game.store';
 
 export { useUiStore } from './ui.store';
 export type { ModalType } from './ui.store';
+
+export { useSettingsStore } from './settings.store';
+export type { LocalSettings } from './settings.store';
