@@ -10,7 +10,12 @@
  * payload to any store other than the drawer store singleton.
  */
 import type { Socket } from 'socket.io-client';
-import type { SnapshotStroke, Stroke } from '../types';
+import type {
+  GamePhase,
+  RoundEndReason,
+  SnapshotStroke,
+  Stroke,
+} from '../types';
 import { useConnectionStore } from '../stores/connection.store';
 import { useDrawerGameStore } from '../stores/drawer.store';
 import { useGuesserGameStore } from '../stores/guesser.store';
@@ -438,12 +443,12 @@ export function registerDispatcher(socket: Socket): () => void {
         roundNumber: number;
         endReason: string;
         word: string;
-        rankings: Array<{
+        rankings: {
           playerId: string;
           nickname: string;
           rank: number;
           points: number;
-        }>;
+        }[];
         drawerBonus: number;
         drawerPoints: number;
         version: number;
@@ -451,7 +456,7 @@ export function registerDispatcher(socket: Socket): () => void {
       if (p.version !== undefined && !shouldApply(p.version)) return;
       useDrawerGameStore.getState().setRoundResult({
         roundNumber: p.roundNumber,
-        endReason: p.endReason as any,
+        endReason: p.endReason as RoundEndReason,
         word: p.word,
         rankings: p.rankings,
         drawerBonus: p.drawerBonus,
@@ -483,12 +488,12 @@ export function registerDispatcher(socket: Socket): () => void {
     'game:finished': (payload: unknown) => {
       const p = payload as {
         finalScores: Record<string, number>;
-        rankings: Array<{
+        rankings: {
           playerId: string;
           nickname: string;
           rank: number;
           score: number;
-        }>;
+        }[];
         winnerId: string;
         version: number;
       };
@@ -580,7 +585,7 @@ export function registerDispatcher(socket: Socket): () => void {
       if (!shouldApply(p.version)) return;
 
       const isDrawer = p.you.role === 'DRAWER';
-      const phase = p.game.phase as any;
+      const phase = p.game.phase as GamePhase;
       const timer = p.round.timer;
 
       if (isDrawer) {
