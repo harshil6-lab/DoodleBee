@@ -2,14 +2,16 @@
  * Route: /create-room
  *
  * Entry: user taps "Create Room" from home.
- * Exit: POST /rooms → store room info → connect socket + join:room → /lobby/:roomId
+ * Exit: POST /rooms -> store room info -> connect socket + join:room -> /lobby/:roomId
  *
- * Form reads configurable bounds from GET /settings (D04-016).
- * Server remains authoritative for all values.
+ * Visual reference: Figma Make "DoodleBee" screens `create-empty` / `create-set`
+ * / `create-err`. Behaviour is unchanged: form bounds come from GET /settings
+ * (D04-016) and the server stays authoritative for all values.
  */
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSessionStore } from '@/stores/session.store';
 import { useRoomStore } from '@/stores/room.store';
 import { createRoom, getSettings } from '@/api/endpoints';
@@ -17,7 +19,10 @@ import { joinRoom as joinRoomSocket } from '@/realtime/socket';
 import { RoomConfigSchema } from '@/validation/schemas';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
-import { tokens } from '@/theme/tokens';
+import { ScreenHeader } from '@/components/ScreenHeader';
+import { PaperBackground } from '@/components/ui/PaperBackground';
+import { ComicSurface } from '@/components/ui/ComicSurface';
+import { tokens } from '@/theme';
 import { env } from '@/config/env';
 
 // ------------------------------------------------------------------ Types ----
@@ -32,8 +37,63 @@ interface FormState {
 
 // ---------------------------------------------------------------- Component --
 
+const Stepper = ({
+  label,
+  description,
+  value,
+  onDec,
+  onInc,
+  decDisabled,
+  incDisabled,
+  testID,
+}: {
+  label: string;
+  description: string;
+  value: string;
+  onDec: () => void;
+  onInc: () => void;
+  decDisabled?: boolean;
+  incDisabled?: boolean;
+  testID?: string;
+}) => (
+  <ComicSurface
+    variant="sticker"
+    style={styles.row}
+    contentStyle={styles.rowInner}
+  >
+    <View style={styles.rowText}>
+      <Text style={styles.rowLabel}>{label}</Text>
+      <Text style={styles.rowDescription}>{description}</Text>
+    </View>
+    <View style={styles.stepper} testID={testID}>
+      <Pressable
+        onPress={onDec}
+        disabled={decDisabled}
+        hitSlop={6}
+        accessibilityRole="button"
+        accessibilityLabel={`Decrease ${label}`}
+        style={[styles.stepBtn, decDisabled && styles.stepBtnDisabled]}
+      >
+        <Text style={styles.stepBtnText}>−</Text>
+      </Pressable>
+      <Text style={styles.stepValue}>{value}</Text>
+      <Pressable
+        onPress={onInc}
+        disabled={incDisabled}
+        hitSlop={6}
+        accessibilityRole="button"
+        accessibilityLabel={`Increase ${label}`}
+        style={[styles.stepBtn, incDisabled && styles.stepBtnDisabled]}
+      >
+        <Text style={styles.stepBtnText}>+</Text>
+      </Pressable>
+    </View>
+  </ComicSurface>
+);
+
 export default function CreateRoomScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const setRoomId = useSessionStore((s) => s.setRoomId);
   const setReconnectInfo = useSessionStore((s) => s.setReconnectInfo);
   const setRoomJoined = useRoomStore((s) => s.setRoomJoined);
@@ -64,7 +124,7 @@ export default function CreateRoomScreen() {
     getSettings()
       .then((resp) => setLimits(resp.limits))
       .catch(() => {
-        // Bounds unavailable — fall back to hardcoded minimums.
+        // Bounds unavailable - fall back to hardcoded minimums.
         // This is a degraded state, not a hard failure.
       });
   }, []);
@@ -137,7 +197,7 @@ export default function CreateRoomScreen() {
     }
   }
 
-  // Derive selectable options from server limits (or fallback defaults).
+  // Derive selectable bounds from server limits (or fallback defaults).
   const mpMin = limits?.minPlayers ?? 2;
   const mpMax = limits?.maxPlayers ?? 8;
   const rMin = limits?.minRounds ?? 1;
@@ -147,121 +207,129 @@ export default function CreateRoomScreen() {
   const hMin = limits?.minHints ?? 0;
   const hMax = limits?.maxHints ?? 5;
 
-  const playerOptions = Array.from(
-    { length: mpMax - mpMin + 1 },
-    (_, i) => mpMin + i,
-  );
-  const roundOptions = Array.from(
-    { length: rMax - rMin + 1 },
-    (_, i) => rMin + i,
-  );
   const durationOptions = [30, 60, 90, 120, 180, 240, 300].filter(
     (d) => d >= durMin && d <= durMax,
   );
-  const hintOptions = Array.from(
-    { length: hMax - hMin + 1 },
-    (_, i) => hMin + i,
-  );
+
+  const adjustDuration = (delta: number) => {
+    const idx = durationOptions.indexOf(form.roundDuration);
+    const base = idx === -1 ? 0 : idx;
+    const nextIdx = Math.max(
+      0,
+      Math.min(durationOptions.length - 1, base + delta),
+    );
+    updateField('roundDuration', durationOptions[nextIdx]);
+  };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-    >
-      <Text style={styles.title}>Create Room</Text>
+    <View style={styles.root}>
+      <PaperBackground />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + tokens.spacing.sm },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <ScreenHeader
+          onBack={() => router.replace('/')}
+          testID="create-room-back"
+        />
 
-      <Input
-        value={form.roomName}
-        onChangeText={(v) => updateField('roomName', v)}
-        placeholder="Room name (optional)"
-        maxLength={30}
-        testID="room-name-input"
-      />
-
-      {/* Max Players selector */}
-      <Selector
-        label="Players"
-        value={form.maxPlayers}
-        options={playerOptions}
-        onSelect={(v) => updateField('maxPlayers', v)}
-        testID="max-players-selector"
-      />
-
-      {/* Rounds selector */}
-      <Selector
-        label="Rounds"
-        value={form.rounds}
-        options={roundOptions}
-        onSelect={(v) => updateField('rounds', v)}
-        testID="rounds-selector"
-      />
-
-      {/* Duration selector */}
-      <Selector
-        label="Duration (s)"
-        value={form.roundDuration}
-        options={durationOptions}
-        onSelect={(v) => updateField('roundDuration', v)}
-        testID="duration-selector"
-      />
-
-      {/* Hints selector */}
-      <Selector
-        label="Hints"
-        value={form.hints}
-        options={hintOptions}
-        onSelect={(v) => updateField('hints', v)}
-        testID="hints-selector"
-      />
-
-      {error ? (
-        <Text style={styles.errorText} testID="create-room-error">
-          {error}
+        <Text style={styles.header}>CREATE YOUR{'\n'}CHAOS 🎨</Text>
+        <Text style={styles.subtitle}>
+          Your friends won&apos;t know what hit them.
         </Text>
-      ) : null}
 
-      <Button
-        label="Create & Join"
-        onPress={handleCreate}
-        disabled={!!validationError || submitting}
-        isLoading={submitting}
-        testID="create-room-submit"
-        style={styles.submitButton}
-      />
-    </ScrollView>
-  );
-}
+        <Text style={styles.fieldLabel}>🏷 Room Name</Text>
+        <Text style={styles.fieldDescription}>
+          Something chaotic and iconic
+        </Text>
+        <Input
+          value={form.roomName}
+          onChangeText={(v) => updateField('roomName', v)}
+          placeholder="E.g. Friday Night Chaos..."
+          maxLength={30}
+          testID="room-name-input"
+        />
 
-// ---------------------------------------------------------------- Selector --
+        <Stepper
+          label="👥 Max Players"
+          description="How many chaotic artists?"
+          value={`${form.maxPlayers}`}
+          onDec={() =>
+            updateField('maxPlayers', Math.max(mpMin, form.maxPlayers - 1))
+          }
+          onInc={() =>
+            updateField('maxPlayers', Math.min(mpMax, form.maxPlayers + 1))
+          }
+          decDisabled={form.maxPlayers <= mpMin}
+          incDisabled={form.maxPlayers >= mpMax}
+          testID="max-players-selector"
+        />
 
-interface SelectorProps {
-  label: string;
-  value: number;
-  options: number[];
-  onSelect: (value: number) => void;
-  testID?: string;
-}
+        <Stepper
+          label="🔄 Rounds"
+          description="More rounds = more suffering 😈"
+          value={`${form.rounds}`}
+          onDec={() => updateField('rounds', Math.max(rMin, form.rounds - 1))}
+          onInc={() => updateField('rounds', Math.min(rMax, form.rounds + 1))}
+          decDisabled={form.rounds <= rMin}
+          incDisabled={form.rounds >= rMax}
+          testID="rounds-selector"
+        />
 
-function Selector({ label, value, options, onSelect, testID }: SelectorProps) {
-  return (
-    <View style={styles.selectorRow}>
-      <Text style={styles.selectorLabel}>{label}</Text>
-      <View style={styles.selectorButtons} testID={testID}>
-        {options.map((opt) => (
-          <Button
-            key={opt}
-            label={`${opt}`}
-            onPress={() => onSelect(opt)}
-            variant={value === opt ? 'primary' : 'ghost'}
-            style={
-              value === opt
-                ? { ...styles.selectorBtn, ...styles.selectorBtnActive }
-                : styles.selectorBtn
-            }
-          />
-        ))}
-      </View>
+        <Stepper
+          label="⏱ Round Timer"
+          description="Seconds per drawing"
+          value={`${form.roundDuration}s`}
+          onDec={() => adjustDuration(-1)}
+          onInc={() => adjustDuration(1)}
+          decDisabled={durationOptions.indexOf(form.roundDuration) <= 0}
+          incDisabled={
+            durationOptions.indexOf(form.roundDuration) ===
+            durationOptions.length - 1
+          }
+          testID="duration-selector"
+        />
+
+        <Stepper
+          label="💡 Hints"
+          description="Clues for the artistically challenged"
+          value={`${form.hints}`}
+          onDec={() => updateField('hints', Math.max(hMin, form.hints - 1))}
+          onInc={() => updateField('hints', Math.min(hMax, form.hints + 1))}
+          decDisabled={form.hints <= hMin}
+          incDisabled={form.hints >= hMax}
+          testID="hints-selector"
+        />
+
+        {validationError || error ? (
+          <ComicSurface
+            variant="sticker"
+            radius={tokens.radius.sm}
+            backgroundColor={tokens.colors.cheek}
+            style={styles.errorCard}
+            contentStyle={styles.errorInner}
+          >
+            <Text style={styles.errorText} testID="create-room-error">
+              ★ {validationError ?? error}
+            </Text>
+          </ComicSurface>
+        ) : null}
+
+        <Button
+          label="🎨 CREATE ROOM"
+          variant="primary"
+          fullWidth
+          onPress={handleCreate}
+          disabled={!!validationError || submitting}
+          isLoading={submitting}
+          testID="create-room-submit"
+          style={styles.submitButton}
+        />
+      </ScrollView>
     </View>
   );
 }
@@ -269,54 +337,112 @@ function Selector({ label, value, options, onSelect, testID }: SelectorProps) {
 // --------------------------------------------------------- Styles ----------
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: tokens.colors.background,
+    backgroundColor: tokens.colors.cream,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
-    paddingHorizontal: tokens.spacing.xl,
-    paddingTop: tokens.spacing.xxxl,
-    paddingBottom: tokens.spacing.xxxl,
-    gap: tokens.spacing.md,
+    paddingHorizontal: tokens.spacing.lg,
+    paddingBottom: tokens.spacing.xxl,
   },
-  title: {
-    fontSize: tokens.typography.heading.fontSize,
-    fontWeight: tokens.typography.heading.fontWeight,
-    color: tokens.colors.textPrimary,
+  header: {
+    marginTop: tokens.spacing.md,
+    fontFamily: tokens.typography.display.fontFamily,
+    fontSize: tokens.typography.display.fontSize,
+    lineHeight: tokens.typography.display.lineHeight,
+    letterSpacing: tokens.typography.display.letterSpacing,
+    color: tokens.colors.ink,
+  },
+  subtitle: {
+    marginTop: tokens.spacing.sm,
     marginBottom: tokens.spacing.lg,
+    fontFamily: tokens.typography.body.fontFamily,
+    fontSize: tokens.typography.body.fontSize,
+    color: tokens.colors.textSecondary,
   },
-  selectorRow: {
+  fieldLabel: {
+    fontFamily: tokens.typography.bodyBold.fontFamily,
+    fontSize: tokens.typography.bodyBold.fontSize,
+    color: tokens.colors.ink,
+  },
+  fieldDescription: {
+    marginBottom: tokens.spacing.sm,
+    fontFamily: tokens.typography.caption.fontFamily,
+    fontSize: tokens.typography.caption.fontSize,
+    color: tokens.colors.textSecondary,
+  },
+  row: {
+    marginTop: tokens.spacing.md,
+  },
+  rowInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: tokens.spacing.sm,
+    paddingVertical: tokens.spacing.md,
+    paddingHorizontal: tokens.spacing.md,
+    gap: tokens.spacing.sm,
   },
-  selectorLabel: {
-    fontSize: tokens.typography.body.fontSize,
-    color: tokens.colors.textSecondary,
-    width: 100,
-  },
-  selectorButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: tokens.spacing.xs,
+  rowText: {
     flex: 1,
   },
-  selectorBtn: {
-    paddingHorizontal: tokens.spacing.sm,
-    paddingVertical: tokens.spacing.xs,
-    minHeight: 32,
+  rowLabel: {
+    fontFamily: tokens.typography.bodyBold.fontFamily,
+    fontSize: tokens.typography.bodyBold.fontSize,
+    color: tokens.colors.ink,
   },
-  selectorBtnActive: {
-    backgroundColor: tokens.colors.primary,
+  rowDescription: {
+    marginTop: tokens.spacing.xxs,
+    fontFamily: tokens.typography.caption.fontFamily,
+    fontSize: tokens.typography.caption.fontSize,
+    color: tokens.colors.textSecondary,
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: tokens.spacing.sm,
+  },
+  stepBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: tokens.radius.xs,
+    borderWidth: tokens.border.sticker,
+    borderColor: tokens.colors.ink,
+    backgroundColor: tokens.colors.beeYellow,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepBtnDisabled: {
+    opacity: 0.35,
+  },
+  stepBtnText: {
+    fontFamily: tokens.typography.subheading.fontFamily,
+    fontSize: 20,
+    lineHeight: 22,
+    color: tokens.colors.ink,
+  },
+  stepValue: {
+    minWidth: 40,
+    textAlign: 'center',
+    fontFamily: tokens.typography.subheading.fontFamily,
+    fontSize: tokens.typography.subheading.fontSize,
+    color: tokens.colors.ink,
+  },
+  errorCard: {
+    marginTop: tokens.spacing.md,
+  },
+  errorInner: {
+    paddingVertical: tokens.spacing.sm,
+    paddingHorizontal: tokens.spacing.md,
   },
   errorText: {
+    fontFamily: tokens.typography.bodyBold.fontFamily,
     fontSize: tokens.typography.caption.fontSize,
-    color: tokens.colors.danger,
-    marginTop: tokens.spacing.xs,
+    color: tokens.colors.ink,
   },
   submitButton: {
-    marginTop: tokens.spacing.lg,
-    width: '100%',
+    marginTop: tokens.spacing.xl,
   },
 });
