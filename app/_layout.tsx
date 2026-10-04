@@ -1,11 +1,14 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ConnectionBanner } from '@/components/ConnectionBanner';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { useConnectionStore } from '@/stores/connection.store';
+import { useSessionStore } from '@/stores/session.store';
 import { fontAssets, tokens } from '@/theme';
 
 // Hold the native splash until the approved type is ready so the first frame
@@ -23,6 +26,10 @@ SplashScreen.preventAutoHideAsync().catch(() => undefined);
  */
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts(fontAssets);
+  const router = useRouter();
+  const connectionStatus = useConnectionStore((s) => s.status);
+  const playerId = useSessionStore((s) => s.playerId);
+  const navigationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onReady = useCallback(() => {
     if (fontsLoaded || fontError) {
@@ -34,6 +41,34 @@ export default function RootLayout() {
     onReady();
   }, [onReady]);
 
+  // Auto-navigate to home on session expiration after a short delay.
+  // Uses a ref timer to avoid re-running on every render cycle.
+  useEffect(() => {
+    if (connectionStatus !== 'expired') {
+      if (navigationTimerRef.current) {
+        clearTimeout(navigationTimerRef.current);
+        navigationTimerRef.current = null;
+      }
+      return;
+    }
+    // Already on home with no session — don't re-navigate.
+    if (playerId === null && !router.canGoBack?.()) {
+      return;
+    }
+    navigationTimerRef.current = setTimeout(() => {
+      navigationTimerRef.current = null;
+      // Clear expired session state before navigating so home screen
+      // redirects correctly if the user is not already at /nickname.
+      useSessionStore.getState().clearAll();
+      router.replace('/(index)');
+    }, 2500);
+    return () => {
+      if (navigationTimerRef.current) {
+        clearTimeout(navigationTimerRef.current);
+      }
+    };
+  }, [connectionStatus, playerId, router]);
+
   if (!fontsLoaded && !fontError) {
     return null;
   }
@@ -42,22 +77,24 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <View style={styles.root}>
         <StatusBar style="dark" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: tokens.colors.cream },
-          }}
-        >
-          <Stack.Screen name="(index)" />
-          <Stack.Screen name="nickname" />
-          <Stack.Screen name="create-room" />
-          <Stack.Screen name="join-room" />
-          <Stack.Screen name="lobby/[roomId]" />
-          <Stack.Screen name="game/[roomId]" />
-          <Stack.Screen name="round-result/[roomId]" />
-          <Stack.Screen name="final-result/[roomId]" />
-          <Stack.Screen name="settings" />
-        </Stack>
+        <ErrorBoundary>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: tokens.colors.cream },
+            }}
+          >
+            <Stack.Screen name="(index)" />
+            <Stack.Screen name="nickname" />
+            <Stack.Screen name="create-room" />
+            <Stack.Screen name="join-room" />
+            <Stack.Screen name="lobby/[roomId]" />
+            <Stack.Screen name="game/[roomId]" />
+            <Stack.Screen name="round-result/[roomId]" />
+            <Stack.Screen name="final-result/[roomId]" />
+            <Stack.Screen name="settings" />
+          </Stack>
+        </ErrorBoundary>
         <ConnectionBanner />
       </View>
     </SafeAreaProvider>
